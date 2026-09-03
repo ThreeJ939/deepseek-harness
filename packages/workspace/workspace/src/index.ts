@@ -148,6 +148,7 @@ export class WorkspaceRegistry extends Service {
    * Different canonical paths may share a display title.
    * @param path - Existing directory to own, in any path spelling.
    * @param title - Display title used only when a new record is created.
+   * @param ownerUserId - optional multi-tenant owner stamped on new records.
    * @returns the existing or newly durable workspace.
    */
   // TODO: `title` lost its last production caller when the gateway's
@@ -155,12 +156,12 @@ export class WorkspaceRegistry extends Service {
   // (.agents/notes/implemented/simplification/2026-07-31-one-route-to-add-a-workspace.md);
   // drop the parameter with its @param clause and the `create(path, title?)`
   // lines in this package's README pair.
-  async create(path: string, title?: string): Promise<Workspace> {
+  async create(path: string, title?: string, ownerUserId?: string): Promise<Workspace> {
     const canonical = await realpathNormalize(path)
     if (!(await stat(canonical)).isDirectory()) {
       throw new Error(`cannot create a workspace at '${canonical}': path is not a directory`)
     }
-    return await this.enqueueOperation(() => this.createCanonical(canonical, title))
+    return await this.enqueueOperation(() => this.createCanonical(canonical, title, ownerUserId))
   }
 
   /**
@@ -176,15 +177,17 @@ export class WorkspaceRegistry extends Service {
    * Synchronous workspace projection in durable registry order. Every
    * entity's `sessionIds` getter is already filtered by the startup/live
    * canonical-cwd header index; this method performs no persistence reads.
+   * @param ownerUserId - when set, only workspaces owned by this user are returned.
    * @returns a fresh ordered array of workspace entities.
    */
-  list(): Workspace[] {
-    return this.requireState().workspaceIds.map((id) => {
+  list(ownerUserId?: string): Workspace[] {
+    return this.requireState().workspaceIds.flatMap((id) => {
       const entity = this.entities.get(id)
       if (entity === undefined) {
         throw new Error(`workspace registry order references missing workspace '${id}'`)
       }
-      return entity
+      if (ownerUserId !== undefined && entity.ownerUserId !== ownerUserId) return []
+      return [entity]
     })
   }
 
@@ -282,7 +285,11 @@ export class WorkspaceRegistry extends Service {
     return undefined
   }
 
-  private async createCanonical(canonical: string, title?: string): Promise<WorkspaceEntity> {
+  private async createCanonical(
+    canonical: string,
+    title?: string,
+    ownerUserId?: string,
+  ): Promise<WorkspaceEntity> {
     for (const entity of this.entities.values()) {
       if (entity.path === canonical) return entity
     }
@@ -298,6 +305,7 @@ export class WorkspaceRegistry extends Service {
       sessionIds: [],
       createdAt: now,
       updatedAt: now,
+      ...ownerUserId === undefined ? {} : { ownerUserId },
     }
     const entity = new WorkspaceEntity(this.host, id, record)
     this.entities.set(id, entity)

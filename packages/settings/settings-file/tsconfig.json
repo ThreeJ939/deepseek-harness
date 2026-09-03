@@ -25,6 +25,12 @@
     },
     {
       "path": "../settings"
+    },
+    {
+      "path": "../../host/auth-middleware"
+    },
+    {
+      "path": "../../runtime-diagnostics/invariants"
     }
   ]
 }

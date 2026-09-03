@@ -84,6 +84,11 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      * `id` is added beside the shipped entries instead of replacing them.
      */
     'shell.overlay': { kind: 'list'; scope: 'root' }
+    /**
+     * Full-screen multi-user login gate. Occupied by `dsh-client-ui-auth`
+     * when the multi-user bundle is composed; renders nothing otherwise.
+     */
+    'auth-gate': { kind: 'single'; scope: 'root'; owner: AuthGateOwnerProps }
   }
 }
 
@@ -107,6 +112,9 @@ export interface ConvOwnerProps {}
 /** Details owner share: empty — sessionId arrives as a framework-standard prop. */
 export interface DetailsOwnerProps {}
 
+/** Auth-gate owner share: empty — the registrant owns login state. */
+export interface AuthGateOwnerProps {}
+
 /** Required services (cordis fiber inject — the loader passes all module exports as an object plugin). */
 export const inject = ['slots', 'theme', 'locale']
 
@@ -128,6 +136,7 @@ export function apply(ctx: ClientContext): void {
         'conversation': { kind: 'single', scope: 'session-maybe' },
         'details': { kind: 'single', scope: 'session' },
         'shell.overlay': { kind: 'list', scope: 'root' },
+        'auth-gate': { kind: 'single', scope: 'root' },
       },
       // Exclusive store: the factory itself — the framework instantiates per
       // entry and delivers useStore/actions to AppFrame as standard props.

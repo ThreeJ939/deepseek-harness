@@ -337,6 +337,7 @@ class JsonlSessionPersistence extends SessionPersistence {
    */
   async list(options?: SessionPersistenceListOptions): Promise<readonly SessionPersistenceSnapshot[]> {
     const signal = options?.signal
+    const ownerUserId = options?.ownerUserId
     const snapshots: SessionPersistenceSnapshot[] = []
     const listed = new Set<SessionId>()
     // Snapshot pending entries BEFORE scanning storage: a session whose first
@@ -345,6 +346,7 @@ class JsonlSessionPersistence extends SessionPersistence {
     const pending = [...this.tracker.pendingEntries()]
     for (const artifact of await this.listArtifacts(signal)) {
       signal?.throwIfAborted()
+      if (ownerUserId !== undefined && artifact.header.ownerUserId !== ownerUserId) continue
       try {
         const identity = await stat(artifact.path, { bigint: true })
         signal?.throwIfAborted()
@@ -360,7 +362,9 @@ class JsonlSessionPersistence extends SessionPersistence {
       }
     }
     for (const [id, entry] of pending) {
-      if (!listed.has(id)) snapshots.push({ header: entry.header, revision: entry.revision })
+      if (listed.has(id)) continue
+      if (ownerUserId !== undefined && entry.header.ownerUserId !== ownerUserId) continue
+      snapshots.push({ header: entry.header, revision: entry.revision })
     }
     signal?.throwIfAborted()
     return snapshots

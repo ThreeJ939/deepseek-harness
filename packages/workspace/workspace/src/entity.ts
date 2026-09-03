@@ -98,6 +98,10 @@ export class WorkspaceEntity implements Workspace {
     return this.record.updatedAt
   }
 
+  get ownerUserId(): string | undefined {
+    return this.record.ownerUserId
+  }
+
   get sessionIds(): readonly SessionId[] {
     return this.record.sessionIds.filter(id => this.host.sessionPath(id) === this.record.path)
   }

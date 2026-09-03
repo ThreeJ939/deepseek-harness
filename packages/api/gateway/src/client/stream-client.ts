@@ -11,6 +11,9 @@ import { Deque } from '@deepseek-ai/dsh-deque'
 import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
 
 const INTERNAL_BASE = 'http://dsh.internal'
+/** Must match `@deepseek-ai/dsh-client-connection` auth helpers. */
+const DSH_AUTH_JWT_KEY = 'dsh.auth.jwt'
+const DSH_AUTH_EXPIRED_EVENT = 'dsh-auth-expired'
 
 /** Physical Remote stream socket failure that may be retried by a domain transport. */
 export class RemoteStreamCarrierError extends Error {
@@ -140,6 +143,7 @@ export class RemoteStreamMuxClient {
   }
 
   private connect(): Promise<WebSocket> {
+    const jwt = readAuthJwt()
     const socket = new WebSocket(remoteStreamUrl())
     const connecting = new Promise<WebSocket>((resolve, reject) => {
       let settled = false
@@ -162,6 +166,7 @@ export class RemoteStreamMuxClient {
       }
       const failed = (): void => {
         if (!settled) {
+          notifyAuthExpiredIfJwtStale(jwt)
           rejectCandidate(new RemoteStreamCarrierError(
             'api gateway: Remote stream WebSocket failed to open',
           ))
@@ -173,6 +178,7 @@ export class RemoteStreamMuxClient {
       }
       const closed = (): void => {
         if (!settled) {
+          notifyAuthExpiredIfJwtStale(jwt)
           rejectCandidate(new RemoteStreamCarrierError(
             'api gateway: Remote stream WebSocket closed before opening',
           ))
@@ -306,5 +312,44 @@ function remoteStreamUrl(): string {
   const base = location?.origin !== undefined && location.origin !== 'null' ? location.origin : INTERNAL_BASE
   const url = new URL(REMOTE_STREAM_MUX_PATH, base)
   url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
+  const jwt = readAuthJwt()
+  if (jwt !== undefined) url.searchParams.set('access_token', jwt)
   return url.href
+}
+
+/** Read the multi-user JWT from sessionStorage when present. */
+function readAuthJwt(): string | undefined {
+  if (typeof globalThis.sessionStorage === 'undefined') return undefined
+  const value = globalThis.sessionStorage.getItem(DSH_AUTH_JWT_KEY)
+  if (value === null || value.length === 0) return undefined
+  return value
+}
+
+/** Clear JWT and notify login UI when the carrier rejects an expired token. */
+function notifyAuthExpiredIfJwtStale(jwt: string | undefined): void {
+  if (jwt === undefined || !isAuthJwtExpired(jwt)) return
+  if (typeof globalThis.sessionStorage !== 'undefined') {
+    globalThis.sessionStorage.removeItem(DSH_AUTH_JWT_KEY)
+  }
+  try {
+    globalThis.dispatchEvent?.(new Event(DSH_AUTH_EXPIRED_EVENT))
+  } catch {
+    // dispatchEvent may be absent in non-browser runtimes.
+  }
+}
+
+function isAuthJwtExpired(jwt: string): boolean {
+  const segments = jwt.split('.')
+  if (segments.length !== 3) return false
+  const payloadSegment = segments[1]
+  if (payloadSegment === undefined || payloadSegment.length === 0) return false
+  try {
+    const normalized = payloadSegment.replace(/-/g, '+').replace(/_/g, '/')
+    const padded = normalized.padEnd(normalized.length + ((4 - normalized.length % 4) % 4), '=')
+    const payload = JSON.parse(atob(padded)) as { exp?: unknown }
+    if (typeof payload.exp !== 'number') return false
+    return Math.floor(Date.now() / 1000) >= payload.exp
+  } catch {
+    return false
+  }
 }

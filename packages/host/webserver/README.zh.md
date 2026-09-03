@@ -42,7 +42,7 @@ kind: "package-reference"
 
 ### 注册路由
 
-`register(route)` 添加具名的 `exact`／`prefix` HTTP route，`registerUpgrade(route)` 为精确 pathname 添加 upgrade route，两者返回的 disposer 都会移除注册。同一张表内的重复路径会抛错——route 模式是组合层约定，冲突即配置错误。HTTP 匹配先在整张表中匹配精确 route，再匹配最长前缀，最后交给回退 handler；upgrade 只做精确匹配，未命中连接直接关闭。
+`register(route)` 添加具名的 `exact`／`prefix` HTTP route，`registerUpgrade(route)` 为精确 pathname 添加 upgrade route，两者返回的 disposer 都会移除注册。同一张表内的重复路径会抛错——route 模式是组合层约定，冲突即配置错误。`registerMiddleware(middleware)` 注册全局路由前 HTTP 中间件（按注册顺序；每个必须调用 `next()`）；[`dsh-host-auth-middleware`](../auth-middleware/README.zh.md) 等鉴权插件占用该座位。HTTP 匹配先在整张表中匹配精确 route，再匹配最长前缀，最后交给回退 handler；upgrade 只做精确匹配，未命中连接直接关闭。
 
 ### 回退席位
 
@@ -110,7 +110,7 @@ index 启动输入分两层。`collectIndexInjections()` 收集一张全新的�
 
 这些限制说明服务器在何处有意保持最小。它们是当前包约束，不是任务积压。
 
-- **不提供服务器级 TLS、认证或来源策略**：`dsh-client-connection` 等 route owner 会实施自己的请求策略。绑定非回环地址仍会向该网络公开未受保护的 route 与静态资源。
+- **不提供内置 TLS、认证或来源策略**：绑定非回环地址会向该网络公开服务器；JWT 等门控以中间件形式注册（例如 `dsh-host-auth-middleware`），或由前置反向代理承担。
 - **Socket 选项固定不变**：配置只选择绑定宿主与端口；在具体部署产生需求前，backlog 和其他 socket 设置仍保持内部实现。
 
 <a id="dev-note"></a>

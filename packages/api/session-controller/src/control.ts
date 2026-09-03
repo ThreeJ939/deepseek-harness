@@ -47,16 +47,17 @@ export class SessionControlController {
   }
 
   /**
-   * Open one generation of Host-wide live control state.
+   * Open one generation of live Session control state.
    * @param signal - Remote stream cancellation.
+   * @param viewerUserId - when set, baseline and live frames exclude other users' Sessions.
    * @returns one complete baseline followed by live replacement frames.
    */
-  async *control(signal: AbortSignal): AsyncIterable<SessionControlFrame> {
+  async *control(signal: AbortSignal, viewerUserId?: string): AsyncIterable<SessionControlFrame> {
     signal.throwIfAborted()
-    const queue = new ControlQueue()
+    const queue = new ControlQueue(viewerUserId)
     this.streams.add(queue)
     try {
-      yield { type: 'baseline', value: this.baseline() }
+      yield { type: 'baseline', value: this.baseline(viewerUserId) }
       yield* queue.iterate(signal)
     } finally {
       this.streams.delete(queue)
@@ -64,8 +65,8 @@ export class SessionControlController {
     }
   }
 
-  private baseline(): SessionControlBaseline {
-    const sessions = this.ctx.sessions.list()
+  private baseline(viewerUserId?: string): SessionControlBaseline {
+    const sessions = visibleSessions(this.ctx, viewerUserId)
     const queues = Object.create(null) as Record<SessionId, readonly SessionQueuedItem[]>
     const jobs = Object.create(null) as Record<SessionId, readonly SessionJob[]>
     for (const session of sessions) {
@@ -126,7 +127,10 @@ export class SessionControlController {
   }
 
   private broadcast(frame: SessionControlFrame): void {
-    for (const stream of this.streams) stream.push(frame)
+    for (const stream of this.streams) {
+      if (!frameVisibleToViewer(this.ctx, frame, stream.viewerUserId)) continue
+      stream.push(frame)
+    }
   }
 }
 
@@ -135,6 +139,8 @@ class ControlQueue {
   private wake: (() => void) | undefined
   private done = false
 
+  /** @param viewerUserId - authenticated viewer; undefined accepts every Session. */
+  constructor(readonly viewerUserId: string | undefined) {}
   push(frame: SessionControlFrame): void {
     if (this.done) return
     this.buffer.pushBack(frame)
@@ -169,6 +175,49 @@ class ControlQueue {
       this.end()
     }
   }
+}
+
+/**
+ * Whether one Session is visible on a viewer-scoped control stream.
+ * @param session - candidate Session.
+ * @param viewerUserId - authenticated viewer, or undefined in single-user mode.
+ * @returns whether the Session belongs on that viewer's control stream.
+ */
+function sessionVisibleToViewer(session: Session, viewerUserId: string | undefined): boolean {
+  if (viewerUserId === undefined) return true
+  const owner = session.header.ownerUserId
+  return owner === undefined || owner === viewerUserId
+}
+
+/**
+ * Live Sessions included in one control baseline for the given viewer.
+ * @param ctx - Host context carrying the session registry.
+ * @param viewerUserId - authenticated viewer, or undefined in single-user mode.
+ * @returns Sessions whose control state the viewer may observe.
+ */
+function visibleSessions(ctx: Context, viewerUserId: string | undefined): Session[] {
+  const sessions = ctx.sessions.list()
+  if (viewerUserId === undefined) return sessions
+  return sessions.filter(session => sessionVisibleToViewer(session, viewerUserId))
+}
+
+/**
+ * Whether one live control frame may be delivered to a viewer-scoped stream.
+ * @param ctx - Host context used to resolve Session ownership on deltas.
+ * @param frame - baseline or live replacement frame.
+ * @param viewerUserId - authenticated viewer bound to the target stream.
+ * @returns whether the frame may be pushed to that stream.
+ */
+function frameVisibleToViewer(
+  ctx: Context,
+  frame: SessionControlFrame,
+  viewerUserId: string | undefined,
+): boolean {
+  if (viewerUserId === undefined) return true
+  if (frame.type === 'baseline') return true
+  const session = ctx.sessions.get(frame.sessionId)
+  if (session === undefined) return false
+  return sessionVisibleToViewer(session, viewerUserId)
 }
 
 function queueItems(

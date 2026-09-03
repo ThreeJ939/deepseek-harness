@@ -17,6 +17,8 @@ import { withFileLock, writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import { canonicalizeWatchPath, resolveDshHome } from '@deepseek-ai/dsh-home-paths'
 import { SettingsProvider, type SettingsNamespace } from '@deepseek-ai/dsh-settings'
 import { deepEqualJson } from '@deepseek-ai/dsh-util-values'
+// Optional: multi-tenant overlays read the current principal when composed.
+import type {} from '@deepseek-ai/dsh-host-auth-middleware'
 
 /** Plugin config: file location and hot-reload behavior. */
 export interface Config {
@@ -28,6 +30,13 @@ export interface Config {
   watch?: boolean
   /** Watcher write-settle window in milliseconds; defaults to 100. */
   debounceMs?: number
+  /**
+   * When true, authenticated callers (via `authMiddleware`) read a merge of
+   * the deployment document and `$DSH_HOME/user-settings/<userId>.yaml`, and
+   * writes land only in the per-user overlay. Single-user deployments leave
+   * this false.
+   */
+  userOverlay?: boolean
 }
 
 /** Document format derived from the configured file extension. */
@@ -109,6 +118,7 @@ export class FileSettingsProvider extends SettingsProvider {
     dshHome: z.string(),
     watch: z.boolean().default(true),
     debounceMs: z.number().min(0).default(100),
+    userOverlay: z.boolean().default(false),
   })
 
   private readonly spec: ResolvedSpec
@@ -175,11 +185,22 @@ export class FileSettingsProvider extends SettingsProvider {
     } catch (error) {
       if (!isENOENT(error)) throw error
       this.text = undefined
-      return {}
+      text = ''
     }
-    const doc = this.parse(text)
-    this.text = text
-    return doc
+    const deployment = text.length === 0 ? {} : this.parse(text)
+    this.text = text.length === 0 ? undefined : text
+    if (this.config.userOverlay !== true) return deployment
+    const userId = this.ctx.get('authMiddleware')?.getCurrentPrincipal()?.userId
+    if (userId === undefined) return deployment
+    const overlayPath = join(resolveDshHome(this.config.dshHome), 'user-settings', `${userId}.yaml`)
+    try {
+      const overlayText = await readFile(overlayPath, 'utf8')
+      const overlay = this.parse(overlayText)
+      return { ...deployment, ...overlay }
+    } catch (error) {
+      if (!isENOENT(error)) throw error
+      return deployment
+    }
   }
 
   protected persist(ns: SettingsNamespace, section: Record<string, unknown>): Promise<void> {
@@ -187,7 +208,47 @@ export class FileSettingsProvider extends SettingsProvider {
     // queues serialize with each other and with watcher reloads on the one
     // operation chain: each render must see the text the previous operation
     // committed, or a sibling section silently vanishes from disk.
-    return this.enqueue(() => this.persistSection(ns, section))
+    return this.enqueue(async () => {
+      if (this.config.userOverlay === true) {
+        const userId = this.ctx.get('authMiddleware')?.getCurrentPrincipal()?.userId
+        if (userId !== undefined) {
+          await this.persistUserOverlay(userId, ns, section)
+          return
+        }
+      }
+      await this.persistSection(ns, section)
+    })
+  }
+
+  /**
+   * Write one namespace section into the caller's per-user overlay document.
+   * @param userId - authenticated user id.
+   * @param ns - settings namespace being updated.
+   * @param section - next section value.
+   */
+  private async persistUserOverlay(
+    userId: string,
+    ns: SettingsNamespace,
+    section: Record<string, unknown>,
+  ): Promise<void> {
+    const overlayPath = join(resolveDshHome(this.config.dshHome), 'user-settings', `${userId}.yaml`)
+    await mkdir(dirname(overlayPath), { recursive: true, mode: 0o700 })
+    await withFileLock(overlayPath, async () => {
+      let current: Record<string, unknown> = {}
+      try {
+        current = this.parse(await readFile(overlayPath, 'utf8'))
+      } catch (error) {
+        if (!isENOENT(error)) throw error
+      }
+      const next = { ...current, [String(ns)]: section }
+      const document = this.spec.format === 'json'
+        ? `${JSON.stringify(next, null, 2)}\n`
+        : (() => {
+          const doc = new Document(next)
+          return String(doc)
+        })()
+      await writeFileAtomic(overlayPath, document, { mode: 0o600 })
+    })
   }
 
   /** Queue one exclusive document operation behind every earlier one. */

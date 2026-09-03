@@ -14,6 +14,8 @@ import type {
   WorkspaceFollowFrame,
   WorkspaceView,
 } from './types.ts'
+import { getPrincipal } from './ownership.ts'
+import type {} from './default-workspace-provisioner.ts'
 
 /**
  * Project one authoritative Workspace entity into its Remote value.
@@ -28,6 +30,7 @@ export function workspaceView(workspace: Workspace): WorkspaceView {
     sessionIds: [...workspace.sessionIds],
     createdAt: workspace.createdAt,
     updatedAt: workspace.updatedAt,
+    ...workspace.ownerUserId === undefined ? {} : { ownerUserId: workspace.ownerUserId },
   }
 }
 
@@ -40,6 +43,7 @@ function changedWorkspaceView(workspaceId: string, value: unknown): WorkspaceVie
     sessionIds: [...record.sessionIds],
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
+    ...record.ownerUserId === undefined ? {} : { ownerUserId: record.ownerUserId },
   }
 }
 
@@ -52,7 +56,8 @@ export class WorkspaceFeed {
 
   /** @param ctx - Host context containing the authoritative Workspace registry. */
   constructor(private readonly ctx: Context) {
-    const baseline = ctx.workspaceRegistry.list()
+    const ownerUserId = getPrincipal(ctx)?.userId
+    const baseline = ctx.workspaceRegistry.list(ownerUserId)
     this.knownIds = new Set(baseline.map(workspace => String(workspace.id)))
     this.order = baseline.map(workspace => String(workspace.id))
     this.archived = ctx.workspaceRegistry.archivedSessionIds.map(String)
@@ -68,8 +73,9 @@ export class WorkspaceFeed {
    * @returns all active Workspaces and archived Session identities.
    */
   baseline(): WorkspaceBaseline {
+    const ownerUserId = getPrincipal(this.ctx)?.userId
     return {
-      items: this.ctx.workspaceRegistry.list().map(workspaceView),
+      items: this.ctx.workspaceRegistry.list(ownerUserId).map(workspaceView),
       archivedSessionIds: [...this.ctx.workspaceRegistry.archivedSessionIds],
     }
   }
@@ -81,6 +87,14 @@ export class WorkspaceFeed {
    */
   async *follow(signal: AbortSignal): AsyncIterable<WorkspaceFollowFrame> {
     signal.throwIfAborted()
+    // Optional multi-user hook: create the caller's default Workspace before the
+    // baseline so the first frame already includes it. Failure must not block
+    // follow — an empty baseline remains valid when provision cannot run.
+    try {
+      await this.ctx.get('defaultWorkspaceProvisioner')?.provision()
+    } catch (_defaultWorkspaceProvisionFailure) {
+      // Best-effort provision; the stream still delivers the current registry.
+    }
     const follower = new WorkspaceFollower()
     this.followers.add(follower)
     try {

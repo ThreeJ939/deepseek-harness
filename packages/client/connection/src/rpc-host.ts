@@ -12,6 +12,7 @@ import { bridge, type FetchHandler } from './http-bridge.ts'
 import { isTrustedApiRequest } from './api-request-trust.ts'
 import { API_PATH } from './api-path.ts'
 import type { BrowserAuth } from './browser-auth.ts'
+import type {} from '@deepseek-ai/dsh-host-auth-middleware'
 import type {
   ConnectionIndexRequest,
   ConnectionIndexResponse,
@@ -92,14 +93,20 @@ export class HostConnectionService extends Service implements HostConnectionHand
     }
   }
 
-  /** Apply the configured Host/Origin fence, then browser authentication. */
+  /** Apply the configured Host/Origin fence, then browser or JWT authentication. */
   requestRejection(request: ConnectionTrustRequest): ConnectionRequestRejection {
     if (!isTrustedApiRequest(request, this.trustedHosts)) return 403
+    // Multi-user JWT middleware already bound a principal for this request.
+    if (this.ctx.get('authMiddleware')?.getCurrentPrincipal() !== undefined) return undefined
+    // Multi-user composition: HTTP /api is gated by auth-middleware; Connection
+    // still accepts the process cookie for single-user and local tooling.
     return this.browserAuth.isAuthenticated(request) ? undefined : 401
   }
 
   /** Authenticate an index request through the process-token exchange or cookie. */
   authorizeIndex(request: ConnectionIndexRequest, response: ConnectionIndexResponse): boolean {
+    // Multi-user login UI needs the SPA before a JWT exists.
+    if (this.ctx.get('authMiddleware') !== undefined) return true
     return this.browserAuth.authorizeIndex(request, response)
   }
 

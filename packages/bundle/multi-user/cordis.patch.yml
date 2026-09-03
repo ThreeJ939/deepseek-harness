@@ -1,0 +1,57 @@
+# Same-process multi-tenant layer over dsh-base / dsh-web-app.
+# Mounts JWT auth, switches session persistence to SQLite, binds tool paths
+# to each user's workspace root, and wires the browser login UI.
+
+- insert:
+    - id: auth-middleware
+      name: '@deepseek-ai/dsh-host-auth-middleware'
+      config:
+        jwtSecret: !!js process.env.DSH_JWT_SECRET
+
+    # Token-exchange endpoint: POST /api/auth.exchange calls the SaaS userinfo
+    # endpoint and returns a signed HS256 JWT for the requesting browser.
+    - id: auth-login
+      name: '@deepseek-ai/dsh-host-auth-login'
+      config:
+        saasUserinfoUrl: !!js process.env.DSH_SAAS_USERINFO_URL
+        jwtSecret: !!js process.env.DSH_JWT_SECRET
+        # Avoid `?:` in !!js — YAML treats bare `:` as a mapping and turns
+        # the value into an object. Default TTL lives in the plugin Config.
+        jwtTtlSeconds: !!js Number(process.env.DSH_JWT_TTL_SECONDS || 3600)
+
+    - id: session-persistence-sqlite
+      name: '@deepseek-ai/dsh-session-persistence-sqlite'
+      config:
+        path: !!js dshHomePath('sessions.db')
+
+    - id: user-path-policy
+      name: '@deepseek-ai/dsh-user-path-policy'
+
+    # Auto-create $DSH_HOME/workspaces/<userId>/default on first workspace.follow
+    # when the authenticated user has no Workspace yet.
+    - id: default-workspace
+      name: '@deepseek-ai/dsh-multi-user'
+      inject: [workspaceRegistry]
+
+- id: session-persistence-jsonl
+  disabled: true
+
+- id: credentials
+  config:
+    readOnly: true
+
+- id: settings
+  config:
+    userOverlay: true
+
+# Configure the browser login UI that ships in the web-app base roster.
+# DSH_AUTH_ALLOW_JWT_PASTE=1 enables the plain-text paste field for local testing.
+# OAuth is optional: set DSH_OAUTH_* variables to enable the PKCE flow.
+- id: ui-auth
+  config:
+    oauthAuthorizationEndpoint: !!js process.env.DSH_OAUTH_AUTHORIZATION_ENDPOINT
+    oauthTokenEndpoint: !!js process.env.DSH_OAUTH_TOKEN_ENDPOINT
+    oauthClientId: !!js process.env.DSH_OAUTH_CLIENT_ID
+    oauthRedirectUri: !!js process.env.DSH_OAUTH_REDIRECT_URI
+    oauthScopes: !!js process.env.DSH_OAUTH_SCOPES
+    allowJwtPaste: !!js process.env.DSH_AUTH_ALLOW_JWT_PASTE === '1'

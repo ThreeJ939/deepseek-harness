@@ -12,6 +12,7 @@ import SessionStore, { SessionLogOffset, SessionSeq, SESSION_FORMAT_VERSION, Ses
 import type { SessionEvent, SessionHeader } from '@deepseek-ai/dsh-session'
 import type { SessionObservation } from '@deepseek-ai/dsh-session-query'
 import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
+import { normalizeSessionListOptions } from '@deepseek-ai/dsh-session-persistence'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import type { ProjectionDefinition } from '@deepseek-ai/dsh-session-projection'
 import SessionProjectionCache from '@deepseek-ai/dsh-session-projection-cache'
@@ -1011,9 +1012,10 @@ describe('SubagentRuntime.listChildren', () => {
     const controller = new AbortController()
     const entered = Promise.withResolvers<undefined>()
     ctx.sessionPersistence.list = (options) => {
+      const { signal } = normalizeSessionListOptions(options)
       entered.resolve(undefined)
       return new Promise((_resolve, reject) => {
-        options?.signal?.addEventListener('abort', () => {
+        signal?.addEventListener('abort', () => {
           reject(new Error('backend listing aborted'))
         }, { once: true })
       })

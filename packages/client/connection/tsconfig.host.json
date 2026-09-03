@@ -9,6 +9,7 @@
     "src/api-path.ts",
     "src/api-request-trust.ts",
     "src/browser-auth.ts",
+    "src/auth-storage-key.ts",
     "src/http-bridge.ts",
     "src/index.ts",
     "src/loopback-hostname.ts",
@@ -31,6 +32,9 @@
     },
     {
       "path": "../../core/session"
+    },
+    {
+      "path": "../../host/auth-middleware"
     },
     {
       "path": "../../host/webserver"

@@ -21,7 +21,9 @@ import type {
 } from './types.ts'
 
 export type * from './types.ts'
+export type { DefaultWorkspaceProvisioner } from './default-workspace-provisioner.ts'
 export { DirectoryPickerController } from './directory-picker.ts'
+import type {} from './default-workspace-provisioner.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {

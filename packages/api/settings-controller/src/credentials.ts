@@ -10,6 +10,7 @@ import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import type { CredentialProvider } from '@deepseek-ai/dsh-credentials'
 import type { CredentialInfo } from '@deepseek-ai/dsh-credentials/types'
 import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
+import type {} from '@deepseek-ai/dsh-host-auth-middleware'
 import { z } from 'zod'
 
 /**
@@ -98,6 +99,13 @@ export class CredentialsController extends TypertRemoteService {
    */
   @Remote
   async set(ref: string, value: string): Promise<void> {
+    if (this.ctx.get('authMiddleware')?.getCurrentPrincipal() !== undefined) {
+      throw new RemoteError(
+        'gateway/bad-request',
+        'credential writes are disabled in multi-user deployments',
+        {},
+      )
+    }
     const request = parseRequest('credentials.set', setRequestSchema, { ref, value })
     const branded = credentialRef(request.ref)
     const credentials = this.provider()
@@ -111,6 +119,13 @@ export class CredentialsController extends TypertRemoteService {
    */
   @Remote
   async unset(ref: string): Promise<void> {
+    if (this.ctx.get('authMiddleware')?.getCurrentPrincipal() !== undefined) {
+      throw new RemoteError(
+        'gateway/bad-request',
+        'credential writes are disabled in multi-user deployments',
+        {},
+      )
+    }
     const request = parseRequest('credentials.unset', unsetRequestSchema, { ref })
     const branded = credentialRef(request.ref)
     const credentials = this.provider()

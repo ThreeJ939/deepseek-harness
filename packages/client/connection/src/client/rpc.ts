@@ -6,6 +6,10 @@ import {
   type RpcId as RpcIdType,
 } from '../rpc.ts'
 import type { ClientConnectionRpc, ConnectionRpcResult } from '../rpc.ts'
+import {
+  notifyAuthExpired,
+  readStoredAuthJwt,
+} from '../auth-storage-key.ts'
 import { randomUuid } from './random-uuid.ts'
 
 const INTERNAL_BASE = 'http://dsh.internal'
@@ -40,15 +44,22 @@ export function createWebConnectionRpc(doFetch?: RpcFetch, openStream?: RpcStrea
         method: endpoint,
         payload,
       }
+      const headers: Record<string, string> = { 'content-type': 'application/json' }
+      const jwt = readStoredAuthJwt()
+      if (jwt !== undefined) headers.authorization = `Bearer ${jwt}`
       const response = await send(
         new URL(`${channel}/${endpoint}`, resolveBase()),
         {
           method: 'POST',
-          headers: { 'content-type': 'application/json' },
+          headers,
           body: JSON.stringify(message),
           ...signal === undefined ? {} : { signal },
         },
       )
+      if (response.status === 401) {
+        notifyAuthExpired()
+        throw new Error(`transport failure for ${channel}/${endpoint}: HTTP 401`)
+      }
       if (!response.ok) {
         throw new Error(`transport failure for ${channel}/${endpoint}: HTTP ${response.status}`)
       }

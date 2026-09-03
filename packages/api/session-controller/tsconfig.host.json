@@ -17,6 +17,7 @@
     "src/history.ts",
     "src/list.ts",
     "src/model-selection-projection.ts",
+    "src/ownership.ts",
     "src/skill-catalog.ts"
   ],
   "references": [
@@ -34,6 +35,8 @@
     { "path": "../../util/deque" },
     { "path": "../../util/native-command" },
     { "path": "../../preset/agent-presets" },
+    { "path": "../../host/auth-middleware" },
+    { "path": "../../runtime-diagnostics/invariants" },
     { "path": "../../session/session-persistence" },
     { "path": "../../session/session-projection" },
     { "path": "../../session/session-projection-cache" },

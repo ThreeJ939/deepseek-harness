@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": "../deepseek-harness"
+		},
+		{
+			"path": "../deepseek-harness-master"
+		},
+		{
+			"path": "."
+		}
+	],
+	"settings": {}
+}

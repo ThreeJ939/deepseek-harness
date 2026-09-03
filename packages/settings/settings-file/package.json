@@ -30,7 +30,14 @@
     "@deepseek-ai/cordis": "workspace:^",
     "@deepseek-ai/dsh-atomic-write": "workspace:^",
     "@deepseek-ai/dsh-home-paths": "workspace:^",
+    "@deepseek-ai/dsh-host-auth-middleware": "workspace:^",
+    "@deepseek-ai/dsh-invariants": "workspace:^",
     "@deepseek-ai/dsh-settings": "workspace:^"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-host-auth-middleware": {
+      "optional": true
+    }
   },
   "dependencies": {
     "@deepseek-ai/dsh-util-values": "workspace:^",
@@ -42,6 +49,8 @@
     "@deepseek-ai/cordis": "workspace:^",
     "@deepseek-ai/dsh-atomic-write": "workspace:^",
     "@deepseek-ai/dsh-home-paths": "workspace:^",
-    "@deepseek-ai/dsh-settings": "workspace:^"
+    "@deepseek-ai/dsh-invariants": "workspace:^",
+    "@deepseek-ai/dsh-settings": "workspace:^",
+    "@deepseek-ai/dsh-host-auth-middleware": "workspace:^"
   }
 }

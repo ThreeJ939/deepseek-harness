@@ -13,6 +13,7 @@
     "src/client/index.ts",
     "src/client/random-uuid.ts",
     "src/client/rpc.ts",
+    "src/auth-storage-key.ts",
     "src/loopback-hostname.ts",
     "src/rpc.ts"
   ],

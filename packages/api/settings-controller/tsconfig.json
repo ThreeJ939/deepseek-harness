@@ -24,6 +24,12 @@
       "path": "../../core/session"
     },
     {
+      "path": "../../host/auth-middleware"
+    },
+    {
+      "path": "../../runtime-diagnostics/invariants"
+    },
+    {
       "path": "../../util/native-command"
     },
     {

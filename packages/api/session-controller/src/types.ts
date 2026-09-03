@@ -161,6 +161,8 @@ export interface SessionSummary {
   readonly origin?: 'subagent'
   readonly cwd?: string
   readonly projections?: SessionProjectionHints
+  /** Present only in multi-user deployments; identifies the owning user. */
+  readonly ownerUserId?: string
 }
 
 /** One session-content search result. */
@@ -178,6 +180,7 @@ export const SESSION_SEARCH_SNIPPET_MAX_CODE_POINTS = 240
 declare module '@deepseek-ai/dsh-typert-protocol' {
   interface RemoteErrorDetailsMap {
     'session/model-unavailable': { readonly provider: string; readonly model: string }
+    'session/unauthorized': { readonly resource?: string }
     'session/conflict': {
       readonly sessionId: SessionId
       readonly requestedCwd: string
@@ -511,6 +514,16 @@ export type SessionControlFrame =
   | { readonly type: 'queue'; readonly sessionId: SessionId; readonly items: readonly SessionQueuedItem[] }
   | { readonly type: 'jobs'; readonly sessionId: SessionId; readonly jobs: readonly SessionJob[] }
   | ({ readonly type: 'projection' } & SessionProjectionUpdate)
+
+/** Opening request for the Session control stream. */
+export interface SessionControlRequest {
+  /**
+   * Gateway-only viewer identity for multi-user filtering. Browser clients
+   * send an empty object; the Gateway injects this field on WebSocket opens
+   * when auth middleware is composed.
+   */
+  readonly viewerUserId?: string
+}
 
 declare module '@deepseek-ai/cordis' {
   interface Events {

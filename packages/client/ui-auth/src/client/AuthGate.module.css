@@ -1,0 +1,5 @@
+/* Login gate card: comfortable width for OAuth + optional paste. */
+.loginModal {
+  width: min(400px, 100%);
+  padding-bottom: 24px;
+}

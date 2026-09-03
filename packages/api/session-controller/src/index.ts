@@ -32,6 +32,7 @@ import type {
   SessionCancelRequest,
   SessionCancelValue,
   SessionControlFrame,
+  SessionControlRequest,
   SessionCreateRequest,
   SessionCreateValue,
   SessionFollowFrame,
@@ -391,12 +392,13 @@ export class SessionController extends TypertRemoteService {
 
   /**
    * Stream a complete live-control baseline followed by replacement frames.
+   * @param request - opening request; browser clients send an empty object.
    * @param signal - cancellation owned by the Remote stream carrier.
    * @returns one complete baseline followed by live replacement frames.
    */
   @Remote({ mode: 'stream' })
-  control(signal: AbortSignal): AsyncIterable<SessionControlFrame> {
-    return this.controlState.control(signal)
+  control(request: SessionControlRequest, signal: AbortSignal): AsyncIterable<SessionControlFrame> {
+    return this.controlState.control(signal, request.viewerUserId)
   }
 
 }
