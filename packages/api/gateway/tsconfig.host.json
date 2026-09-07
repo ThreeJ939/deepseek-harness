@@ -7,6 +7,7 @@
   },
   "files": [
     "src/index.ts",
+    "src/bind-async-iterable-to-principal.ts",
     "src/inject-control-viewer-user-id.ts",
     "src/remote-error-codes.ts",
     "src/stream-protocol.ts",

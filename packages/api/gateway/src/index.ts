@@ -22,7 +22,8 @@ import {
   type TypertCodec,
   type TypertGatewayBinding,
 } from '@deepseek-ai/dsh-typert-protocol'
-import type {} from '@deepseek-ai/dsh-host-auth-middleware'
+import type { AuthenticatedPrincipal } from '@deepseek-ai/dsh-host-auth-middleware'
+import { bindAsyncIterableToPrincipal } from './bind-async-iterable-to-principal.ts'
 import { injectControlViewerUserId } from './inject-control-viewer-user-id.ts'
 import type {
   InvokeRemoteRequest,
@@ -223,8 +224,8 @@ export class TypertGatewayService extends Service implements TypertGateway {
                 rejectRemoteStreamUpgrade(socket, 401)
                 return
               }
-              // Bind principal for upgrade-time subscribe work; stream pumps
-              // that later need identity must re-enter runWithPrincipal.
+              // Capture userId on the connection; openWireStream re-enters ALS
+              // on each logical-stream pull so handlers can read the principal.
               auth.runWithPrincipal(result.principal, () => {
                 mux.handleUpgrade(req, socket, head, { userId: result.principal.userId })
               })
@@ -400,7 +401,13 @@ export class TypertGatewayService extends Service implements TypertGateway {
     const wirePayload = endpoint === SESSION_CONTROL_STREAM_ENDPOINT && meta.userId !== undefined
       ? injectControlViewerUserId(payload, meta.userId)
       : payload
-    return this.stream(remoteRequest(endpoint, wirePayload, signal))
+    const source = await this.stream(remoteRequest(endpoint, wirePayload, signal))
+    const auth = this.ctx.get('authMiddleware')
+    if (auth === undefined || meta.userId === undefined) return source
+    const principal: AuthenticatedPrincipal = {
+      userId: meta.userId as AuthenticatedPrincipal['userId'],
+    }
+    return bindAsyncIterableToPrincipal(auth, principal, source)
   }
 
   private async *openRemoteEvents(

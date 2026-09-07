@@ -44,8 +44,11 @@ top of the official Host API controllers (not the retired monolithic apiproxy).
 ## Consequences
 
 - Profiles that omit the multi-user bundle keep single-user BrowserAuth behavior.
-- Mux/WebSocket upgrades authenticate JWT when auth-middleware is present;
-  long-lived stream pumps do not automatically re-enter ALS after upgrade.
+- Mux/WebSocket upgrades authenticate JWT when auth-middleware is present and
+  store `userId` on the connection. Gateway re-enters ALS on each logical-stream
+  pull (`bindAsyncIterableToPrincipal`) so handlers such as `workspace.follow`
+  can read `getCurrentPrincipal()`; `$events` filtering still uses connection
+  `userId` / `targetUserId` rather than ALS.
 - Multi-user deployments recreate schema-17 SQLite session databases; no
   migration ships.
 

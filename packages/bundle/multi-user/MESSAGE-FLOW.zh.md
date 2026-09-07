@@ -261,7 +261,7 @@ sequenceDiagram
 
 ## 边界与限制
 
-1. **写操作鉴权强于部分读路径**：`prompt`、`create` 等在 HTTP + ALS 下严格校验 owner；`follow` 在知道 `sessionId` 时可能先返回 snapshot，后台 `promote()` 才暴露 unauthorized（WebSocket 长流 pump 不自动重入 ALS）。正常 UI 只 follow 列表中的自有 Session。
+1. **写操作鉴权强于部分读路径**：`prompt`、`create` 等在 HTTP + ALS 下严格校验 owner；Gateway 在 mux 逻辑流每次拉取时用连接 `userId` 重入 ALS（如 `workspace.follow` 的默认 Workspace provision）。`session.follow` 在知道 `sessionId` 时可能先返回 snapshot，后台 `promote()` 才暴露 unauthorized。正常 UI 只 follow 列表中的自有 Session。
 2. **工作区**：[`workspace-controller`](../../api/workspace-controller/README.zh.md) 按 `ownerUserId` 过滤；`dsh-multi-user` 在首次已鉴权 `workspace.follow` 时若用户尚无 Workspace，则自动登记 `$DSH_HOME/workspaces/<userId>/default`。
 3. **凭据与设置**：多用户 bundle 下凭据只读、设置写入 per-user overlay（见 [同进程多租户 Agent Note](../../../.agents/notes/implemented/architecture/2026-08-27-same-process-multi-tenant.zh.md)）。
 

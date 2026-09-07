@@ -261,7 +261,7 @@ User A (Session SA) and User B (Session SB) prompt together:
 
 ## Boundaries and limitations
 
-1. **Writes are stricter than some reads**: `prompt` and `create` enforce owner under HTTP + ALS; `follow` may return a snapshot before background `promote()` surfaces unauthorized (WebSocket pumps do not automatically re-enter ALS). Normal UI follows only listed owned Sessions.
+1. **Writes are stricter than some reads**: `prompt` and `create` enforce owner under HTTP + ALS; Gateway re-enters ALS from the connection `userId` on each mux logical-stream pull (so `workspace.follow` default Workspace provision can read the principal). `session.follow` may return a snapshot before background `promote()` surfaces unauthorized. Normal UI follows only listed owned Sessions.
 2. **Workspaces**: [`workspace-controller`](../../api/workspace-controller/README.md) filters by `ownerUserId`; `dsh-multi-user` auto-registers `$DSH_HOME/workspaces/<userId>/default` on the first authenticated `workspace.follow` when the user has no Workspace yet.
 3. **Credentials and settings**: the multi-user bundle keeps credentials read-only and routes settings writes to per-user overlays (see the [same-process multi-tenant Agent Note](../../../.agents/notes/implemented/architecture/2026-08-27-same-process-multi-tenant.md)).
 

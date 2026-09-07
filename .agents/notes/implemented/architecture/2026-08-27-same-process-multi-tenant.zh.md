@@ -23,7 +23,7 @@ DeepSeek Harness 原本是单用户本地服务。部门共享进程部署需要
 ## 后果
 
 - 未挂 multi-user bundle 时保持单用户 BrowserAuth。
-- WebSocket 升级时校验 JWT；升级后长连接泵不会自动重新进入 ALS。
+- WebSocket 升级时校验 JWT，并把 `userId` 记在连接上。Gateway 在每次逻辑流拉取时重新进入 ALS（`bindAsyncIterableToPrincipal`），因此 `workspace.follow` 等处理器可读 `getCurrentPrincipal()`；`$events` 过滤仍用连接 `userId` / `targetUserId`，不依赖 ALS。
 - 多用户部署需重建 schema 17 的 SQLite 会话库；不提供迁移。
 
 ## 备选方案

@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-03-multi-user-default-workspace-provision.md
-2026-09-03-multi-user-default-workspace-provision.md: d83f267154cbfcba2d6e9095a52cecda8c47bb6e
-2026-09-03-multi-user-default-workspace-provision.zh.md: 88bc3188c8575595316b4ba8825337281eb86b43
+2026-09-03-multi-user-default-workspace-provision.md: 825bf9c32cbb81d3b412d51b99078b2fcaaec1ba
+2026-09-03-multi-user-default-workspace-provision.zh.md: d87b5ef29e2155546b2d90fdb8bf07447c949262

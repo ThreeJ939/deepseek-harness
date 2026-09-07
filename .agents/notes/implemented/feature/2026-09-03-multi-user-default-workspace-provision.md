@@ -13,7 +13,7 @@ Department multi-user Web deployments ([same-process multi-tenant](../architectu
 When the `dsh-multi-user` bundle is composed, Host auto-provisions one default Workspace per authenticated user:
 
 1. **Path.** `$DSH_HOME/workspaces/<userId>/default/` (created with `mkdir` recursive). The path stays under the same root [`dsh-user-path-policy`](../../../../packages/sandbox/user-path-policy/README.md) already confines tool absolute paths to.
-2. **Trigger.** `workspace.follow` calls an optional `ctx.defaultWorkspaceProvisioner.provision()` hook before emitting the baseline, so the first frame already includes the new row when the user had none. Plugin `apply` alone cannot read the JWT principal (ALS is request-scoped).
+2. **Trigger.** `workspace.follow` calls an optional `ctx.defaultWorkspaceProvisioner.provision()` hook before emitting the baseline, so the first frame already includes the new row when the user had none. Plugin `apply` alone cannot read the JWT principal (ALS is request-scoped). Multiplexed WebSocket stream pulls re-enter ALS from the upgrade-bound `userId` ([multi-tenant ALS](../architecture/2026-08-27-same-process-multi-tenant.md)), so `provision()` sees the caller on the live mux path.
 3. **Idempotence.** Provision no-ops without a principal, no-ops when `workspaceRegistry.list(userId)` is non-empty, and relies on path-unique `workspaceRegistry.create` when racing.
 4. **Failure.** Provision errors are swallowed at the follow entry so an empty baseline still streams; auto-create is best-effort relative to listing.
 5. **UI.** Existing `ui-workspace` navigation already connects the most recent Workspace when the list is non-empty, so no Client change is required for login-to-composer.

@@ -1,9 +1,14 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
 import { randomUUID } from 'node:crypto'
 import { once } from 'node:events'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import WebSocket, { type RawData } from 'ws'
 import { Context, Service, symbols } from '@deepseek-ai/cordis'
 import { apply as applyConnection, inject as connectionInject } from '@deepseek-ai/dsh-client-connection'
+import {
+  UserId,
+  type AuthenticatedPrincipal,
+} from '@deepseek-ai/dsh-host-auth-middleware'
 import WebServer from '@deepseek-ai/dsh-host-webserver'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import {
@@ -121,6 +126,12 @@ class FeedService extends Service {
   abortBeforeOpen(signal: AbortSignal): Iterable<string> {
     if (signal.aborted) throw new Error('fixture observed pre-open cancellation')
     return []
+  }
+
+  @Remote({ mode: 'stream' })
+  *whoami(): Iterable<string> {
+    const userId = this.ctx.get('authMiddleware')?.getCurrentPrincipal()?.userId
+    yield userId ?? 'none'
   }
 
   @Remote({ mode: 'stream' })
@@ -293,6 +304,28 @@ describe('Typert Remote streams', () => {
     await expect(ctx.typertGateway.stream({
       namespace: 'feed', method: 'unary', args: { label: 'a' },
     })).rejects.toMatchObject({ code: 'gateway/signature-invalid' } satisfies Partial<TypertGatewayError>)
+  })
+
+  it('re-enters ALS on mux stream pulls when the upgrade bound a userId', async () => {
+    const { ctx } = await setup(true)
+    const als = new AsyncLocalStorage<AuthenticatedPrincipal>()
+    ctx.provide('authMiddleware', {
+      getCurrentPrincipal: () => als.getStore(),
+      runWithPrincipal: <T>(principal: AuthenticatedPrincipal, fn: () => T): T => als.run(principal, fn),
+      authenticateRequest: async () => ({ ok: true as const, principal: { userId: UserId('alice') } }),
+    })
+    const socket = new WebSocket(
+      `ws://127.0.0.1:${String(ctx.webServer.port)}/api/remote.mux?access_token=test`,
+    )
+    await once(socket, 'open')
+    const frames: Record<string, unknown>[] = []
+    socket.on('message', (data) => { frames.push(JSON.parse(rawText(data)) as Record<string, unknown>) })
+    sendOpen(socket, 'who', 'feed/whoami', {})
+    await vi.waitFor(() => {
+      expect(frames).toContainEqual({ type: 'item', streamId: 'who', value: 'alice' })
+    })
+    socket.close()
+    await once(socket, 'close')
   })
 
   it('uses the configured WebSocket heartbeat interval', { timeout: 1_000 }, async () => {
@@ -1042,6 +1075,7 @@ function descriptors(): InvocationDescriptor[] {
     stream('invalid', [], z.string()),
     stream('nonJson', [], z.unknown()),
     stream('missing', [], z.string()),
+    stream('whoami', [], z.string()),
     { ...stream('abortBeforeOpen', [], z.string()), cancellation: { parameter: 'signal' } },
     stream('reject', [], z.string()),
     stream('rejectWithNonJsonDetails', [], z.string()),
