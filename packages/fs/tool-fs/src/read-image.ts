@@ -65,7 +65,7 @@ const IMAGE_VALUE_SCHEMA = {
   required: true,
   properties: {
     attachmentId: { type: 'string', required: true },
-    mediaType: { type: 'string', enum: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'], required: true },
+    mediaType: { type: 'string', enum: ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/bmp'], required: true },
     bytes: { type: 'integer', required: true },
     width: { type: 'integer', required: true },
     height: { type: 'integer', required: true },

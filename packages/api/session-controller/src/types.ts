@@ -1,7 +1,7 @@
 /** Browser-safe request, result, and lifecycle vocabulary for the Session Remote service. */
 
 import type {
-  AttachmentIdType, ImageAttachmentLimits, ImageAttachmentRef, ImageMediaType,
+  AttachmentIdType, DocumentAttachmentLimits, DocumentMediaType, ImageAttachmentLimits, ImageAttachmentRef, ImageMediaType,
 } from '@deepseek-ai/dsh-attachment'
 import type { Branded } from '@deepseek-ai/dsh-brand'
 import type { MessageId } from '@deepseek-ai/dsh-llm/brand'
@@ -19,6 +19,8 @@ declare module '@deepseek-ai/dsh-session-projection/types' {
     sessionListMetadata: SessionListMetadata
     /** Host state for the boot-constant image-limit view. */
     imageLimits: null
+    /** Host state for the boot-constant document-limit view. */
+    documentLimits: null
     /** Durable model selection already used by a request and still pending for a later request. */
     modelSelection: ModelSelectionProjectionState
   }
@@ -27,6 +29,8 @@ declare module '@deepseek-ai/dsh-session-projection/types' {
     sessionListMetadata: SessionListMetadata
     /** Image-intake limits enforced by the Session prompt endpoint. */
     imageLimits: ImageAttachmentLimits
+    /** Document-intake limits enforced by the Session prompt endpoint; null when the store omits document support. */
+    documentLimits: DocumentAttachmentLimits | null
     /** Durable model selection already used and selected for the next request. */
     modelSelection: ModelSelectionProjection
   }
@@ -68,12 +72,18 @@ export interface SessionProjectionBaseline {
 export type SessionProjectionValues = Partial<SessionProjectionMap>
   & Readonly<Record<string, SessionProjectionValue>>
 
-/** Browser-submitted prompt content; the Host promotes image bytes to durable references. */
+/** Browser-submitted prompt content; the Host promotes image and document bytes to durable references. */
 export type PromptContentPart =
   | { readonly type: 'text'; readonly text: string }
   | {
     readonly type: 'image'
     readonly mediaType: ImageMediaType
+    readonly data: string
+    readonly name?: string
+  }
+  | {
+    readonly type: 'document'
+    readonly mediaType: DocumentMediaType
     readonly data: string
     readonly name?: string
   }

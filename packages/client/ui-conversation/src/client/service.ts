@@ -17,7 +17,7 @@ import type {
   ISessions, PendingSubmissionRetirement, SessionFace,
 } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import type { ImageMediaType } from '@deepseek-ai/dsh-attachment'
+import type { DocumentMediaType, ImageMediaType } from '@deepseek-ai/dsh-attachment'
 import type { ComposerAttachment } from './contract/slots.ts'
 import type { QueueAction, QueueItemId } from './contract/queue.ts'
 import type { ComposerBlocks } from './contract/composer-blocks.ts'
@@ -64,13 +64,26 @@ export interface IConversation {
   loadOlder(): Promise<void>
 }
 
-/** Create one browser-only draft descriptor; only its id enters input state. */
-function browserDraftAttachment(file: File): ComposerAttachment {
+/** Create one browser-only draft image descriptor; only its id enters input state. */
+function browserDraftImage(file: File): Extract<ComposerAttachment, { kind: 'image' }> {
   return {
     kind: 'image',
     id: randomUUID() as DraftAttachmentId,
     previewUrl: URL.createObjectURL(file),
     file,
+  }
+}
+
+/** Create one browser-only draft document descriptor; only its id enters input state. */
+function browserDraftDocument(
+  file: File,
+  mediaType: DocumentMediaType,
+): Extract<ComposerAttachment, { kind: 'document' }> {
+  return {
+    kind: 'document',
+    id: randomUUID() as DraftAttachmentId,
+    file,
+    mediaType,
   }
 }
 
@@ -82,7 +95,7 @@ function browserDraftAttachment(file: File): ComposerAttachment {
  * reads the dimensions into an immutable echo snapshot, so this late write
  * does not require a store notification.
  */
-function probeDimensions(attachment: ComposerAttachment): void {
+function probeDimensions(attachment: Extract<ComposerAttachment, { kind: 'image' }>): void {
   if (typeof Image !== 'function') return
   const probe = new Image()
   probe.onload = () => {
@@ -164,7 +177,7 @@ export class ConversationController extends Service implements IConversation {
     this.blocks = config.blocks
     ctx.effect(() => () => {
       for (const attachment of this.draftAttachments.values()) {
-        revokePreview(attachment.previewUrl)
+        if (attachment.kind === 'image') revokePreview(attachment.previewUrl)
       }
       this.draftAttachments.clear()
     }, 'conversation draft attachments')
@@ -205,37 +218,40 @@ export class ConversationController extends Service implements IConversation {
   ): Promise<SubmitOutcome> {
     const attachments = this.draftImages(imageIds)
     if (attachments.length !== imageIds.length) {
-      throw new Error('conversation.sendSession: one or more draft images are no longer available')
+      throw new Error('conversation.sendSession: one or more draft attachments are no longer available')
     }
+    const images = attachments.filter(
+      (attachment): attachment is Extract<ComposerAttachment, { kind: 'image' }> => attachment.kind === 'image',
+    )
     const snapshot = session.getSnapshot()
     if (snapshot.subagent !== null) {
-      const uploaded = await this.serializeImages(attachments.map(attachment => attachment.file))
+      const uploaded = await this.serializeAttachments(attachments)
       const content = [...uploaded, ...(text === '' ? [] : [{ type: 'text' as const, text }])]
       const result = await session.prompt(content, mode, signal)
       return result.ok ? { kind: 'success' } : { kind: 'error' }
     }
     let finishRetirement: ((retirement: PendingSubmissionRetirement) => void) | undefined
-    const retirement = attachments.length === 0
+    const retirement = images.length === 0
       ? undefined
       : new Promise<PendingSubmissionRetirement>((resolve) => { finishRetirement = resolve })
     const submission = session.beginSubmission({
       mode,
       text,
-      images: attachments.map(attachment => ({
+      images: images.map(attachment => ({
         previewUrl: attachment.previewUrl,
         ...(attachment.file.name === '' ? {} : { name: attachment.file.name }),
         ...(attachment.width === undefined ? {} : { width: attachment.width }),
         ...(attachment.height === undefined ? {} : { height: attachment.height }),
       })),
       onRetire: (settlement) => {
-        this.settleSubmittedImages(session.sessionId, attachments, settlement)
+        this.settleSubmittedImages(session.sessionId, images, settlement)
         finishRetirement?.(settlement)
       },
     })
     let content: Parameters<SessionFace['prompt']>[0]
     try {
       await nextPaint()
-      const uploaded = await this.serializeImages(attachments.map(attachment => attachment.file))
+      const uploaded = await this.serializeAttachments(attachments)
       content = [...uploaded, ...(text === '' ? [] : [{ type: 'text' as const, text }])]
     } catch (error) {
       submission.abandon()
@@ -243,6 +259,14 @@ export class ConversationController extends Service implements IConversation {
     }
     const result = await session.prompt(content, mode, signal, submission.requestId)
     if (!result.ok) return { kind: 'error' }
+    // Document-only drafts have no image echo retirement; release them on success.
+    if (images.length === 0) {
+      for (const attachment of attachments) this.releaseDraftImage(attachment.id)
+    } else {
+      for (const attachment of attachments) {
+        if (attachment.kind === 'document') this.releaseDraftImage(attachment.id)
+      }
+    }
     if (retirement !== undefined && (await retirement).reason !== 'observed') return { kind: 'error' }
     return { kind: 'success' }
   }
@@ -255,7 +279,7 @@ export class ConversationController extends Service implements IConversation {
   createDraftImages(files: readonly File[]): readonly ComposerAttachment[] {
     for (const file of files) imageMediaType(file.type)
     return files.map((file) => {
-      const attachment = browserDraftAttachment(file)
+      const attachment = browserDraftImage(file)
       this.draftAttachments.set(attachment.id, attachment)
       probeDimensions(attachment)
       return attachment
@@ -263,7 +287,21 @@ export class ConversationController extends Service implements IConversation {
   }
 
   /**
-   * Resolve ordered input-state ids to runtime-owned draft images.
+   * Create runtime-only draft documents.
+   * @param files - browser files to register after MIME validation.
+   * @returns ordered draft descriptors.
+   */
+  createDraftDocuments(files: readonly File[]): readonly ComposerAttachment[] {
+    return files.map((file) => {
+      const mediaType = documentMediaType(file)
+      const attachment = browserDraftDocument(file, mediaType)
+      this.draftAttachments.set(attachment.id, attachment)
+      return attachment
+    })
+  }
+
+  /**
+   * Resolve ordered input-state ids to runtime-owned draft attachments.
    * @param ids - draft attachment ids.
    * @returns descriptors that remain live, in requested order.
    */
@@ -288,18 +326,23 @@ export class ConversationController extends Service implements IConversation {
     if (attachments.length !== imageIds.length) {
       throw new Error('conversation.serializeDraftImages: one or more draft images are no longer available')
     }
-    return Promise.all(attachments.map(attachment => this.encodeImage(attachment.file)))
+    return Promise.all(attachments.map(async (attachment) => {
+      if (attachment.kind !== 'image') {
+        throw new Error('conversation.serializeDraftImages: document drafts cannot be sent to commands')
+      }
+      return this.encodeImage(attachment.file)
+    }))
   }
 
   /**
-   * Release one browser-owned draft image and preview URL.
+   * Release one browser-owned draft attachment and any preview URL.
    * @param id - draft attachment id.
    */
   releaseDraftImage(id: DraftAttachmentId): void {
     const attachment = this.draftAttachments.get(id)
     if (attachment === undefined) return
     this.draftAttachments.delete(id)
-    revokePreview(attachment.previewUrl)
+    if (attachment.kind === 'image') revokePreview(attachment.previewUrl)
   }
 
   /**
@@ -370,7 +413,7 @@ export class ConversationController extends Service implements IConversation {
    */
   private settleSubmittedImages(
     sessionId: SessionId,
-    attachments: readonly ComposerAttachment[],
+    attachments: readonly Extract<ComposerAttachment, { kind: 'image' }>[],
     retirement: PendingSubmissionRetirement,
   ): void {
     if (retirement.reason !== 'observed') return
@@ -385,9 +428,21 @@ export class ConversationController extends Service implements IConversation {
     })
   }
 
-  /** Convert browser files to canonical base64 prompt parts. */
-  private serializeImages(images: readonly File[]): Promise<Parameters<SessionFace['prompt']>[0]> {
-    return Promise.all(images.map(async file => ({ type: 'image' as const, ...await this.encodeImage(file) })))
+  /** Convert browser draft attachments to prompt content parts. */
+  private serializeAttachments(
+    attachments: readonly ComposerAttachment[],
+  ): Promise<Parameters<SessionFace['prompt']>[0]> {
+    return Promise.all(attachments.map(async (attachment) => {
+      if (attachment.kind === 'image') {
+        return { type: 'image' as const, ...await this.encodeImage(attachment.file) }
+      }
+      return {
+        type: 'document' as const,
+        mediaType: attachment.mediaType,
+        data: await base64Of(attachment.file),
+        ...(attachment.file.name === '' ? {} : { name: attachment.file.name }),
+      }
+    }))
   }
 
   /** Canonical base64 wire form of one browser image file. */
@@ -406,10 +461,63 @@ function imageMediaType(value: string): ImageMediaType {
     case 'image/jpeg':
     case 'image/webp':
     case 'image/gif':
+    case 'image/bmp':
       return value
     default:
       throw new UnsupportedImageMediaTypeError(value)
   }
+}
+
+/** Unsupported browser-declared document type, localized by the UI boundary. */
+export class UnsupportedDocumentMediaTypeError extends Error {
+  /** Browser-declared MIME value or file name, possibly empty. */
+  readonly mediaType: string
+
+  /** @param mediaType - Browser-declared MIME value or file name. */
+  constructor(mediaType: string) {
+    super(`unsupported document media type: ${mediaType || '(empty)'}`)
+    this.name = 'UnsupportedDocumentMediaTypeError'
+    this.mediaType = mediaType
+  }
+}
+
+function documentMediaType(file: File): DocumentMediaType {
+  const byMime = file.type.trim().toLowerCase()
+  switch (byMime) {
+    case 'application/pdf':
+    case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+    case 'application/msword':
+    case 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
+    case 'application/vnd.ms-excel':
+    case 'application/vnd.openxmlformats-officedocument.presentationml.presentation':
+    case 'application/vnd.ms-powerpoint':
+    case 'text/plain':
+    case 'application/json':
+    case 'text/markdown':
+    case 'text/csv':
+    case 'text/x-java-source':
+    case 'application/sql':
+    case 'application/epub+zip':
+      return byMime
+    default:
+      break
+  }
+  const name = file.name.toLowerCase()
+  if (name.endsWith('.pdf')) return 'application/pdf'
+  if (name.endsWith('.docx')) return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  if (name.endsWith('.doc')) return 'application/msword'
+  if (name.endsWith('.xlsx')) return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  if (name.endsWith('.xls')) return 'application/vnd.ms-excel'
+  if (name.endsWith('.pptx')) return 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+  if (name.endsWith('.ppt')) return 'application/vnd.ms-powerpoint'
+  if (name.endsWith('.txt')) return 'text/plain'
+  if (name.endsWith('.json')) return 'application/json'
+  if (name.endsWith('.md') || name.endsWith('.markdown')) return 'text/markdown'
+  if (name.endsWith('.csv')) return 'text/csv'
+  if (name.endsWith('.java')) return 'text/x-java-source'
+  if (name.endsWith('.sql')) return 'application/sql'
+  if (name.endsWith('.epub')) return 'application/epub+zip'
+  throw new UnsupportedDocumentMediaTypeError(byMime || file.name)
 }
 
 function revokePreview(url: string): void {

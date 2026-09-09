@@ -2,7 +2,7 @@
 
 import type { ContentBlock } from './types.ts'
 import type { Message } from './message.ts'
-import type { AttachmentStore, ImageAttachmentRef, ImageMediaType, RequestImageAttachment } from '@deepseek-ai/dsh-attachment'
+import type { AttachmentStore, DocumentAttachmentRef, ImageAttachmentRef, ImageMediaType, RequestImageAttachment } from '@deepseek-ai/dsh-attachment'
 import { assertNever } from '@deepseek-ai/dsh-util-values'
 
 /** Execution-world path that model tools can use to read one normalized attachment. */
@@ -55,6 +55,7 @@ function extension(mediaType: ImageMediaType): string {
     case 'image/jpeg': return '.jpg'
     case 'image/webp': return '.webp'
     case 'image/gif': return '.gif'
+    case 'image/bmp': return '.bmp'
     default: return assertNever(mediaType, 'image extension')
   }
 }
@@ -284,6 +285,47 @@ export function offloadRequestImagesWithPolicy(
   const remaining = { count }
   return messages.map((message) => {
     const content = replaceOldestImages(message.content, remaining, policy.placeholder)
+    return content === message.content ? message : { ...message, content }
+  })
+}
+
+function documentFrameText(ref: DocumentAttachmentRef, extractedText: string): string {
+  const name = ref.name ?? String(ref.attachmentId)
+  return [
+    `[文档: ${name}]`,
+    `attachmentId: ${ref.attachmentId}`,
+    '<document_content>',
+    extractedText,
+    '</document_content>',
+  ].join('\n')
+}
+
+/** Replace every document block in one content list with its framed text block. */
+function expandDocumentBlocksInContent(blocks: readonly ContentBlock[]): ContentBlock[] {
+  let next: ContentBlock[] | undefined
+  for (const [index, block] of blocks.entries()) {
+    if (block.type === 'document') {
+      next ??= blocks.slice(0, index)
+      next.push({ type: 'text', text: documentFrameText(block.attachment, block.extractedText) })
+    } else {
+      next?.push(block)
+    }
+  }
+  return next ?? blocks as ContentBlock[]
+}
+
+/**
+ * Replace every document block in message history with a framed text block for
+ * model consumption. Documents already stored in the session log retain their
+ * durable block form; only the request projection sees plain text.
+ * @param messages - complete request history.
+ * @returns the original list when no document blocks exist, otherwise shallow
+ *   message copies with the document content inlined as framed text.
+ */
+export function expandDocumentBlocks(messages: readonly Message[]): readonly Message[] {
+  if (!messages.some(message => message.content.some(block => block.type === 'document'))) return messages
+  return messages.map((message) => {
+    const content = expandDocumentBlocksInContent(message.content)
     return content === message.content ? message : { ...message, content }
   })
 }

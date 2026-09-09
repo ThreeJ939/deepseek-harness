@@ -173,6 +173,7 @@ const MEDIA_TYPE_EXTENSIONS: Record<ImageAttachmentRef['mediaType'], string> = {
   'image/jpeg': 'jpg',
   'image/webp': 'webp',
   'image/gif': 'gif',
+  'image/bmp': 'bmp',
 }
 
 /**

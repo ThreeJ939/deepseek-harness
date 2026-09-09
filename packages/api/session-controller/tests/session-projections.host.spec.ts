@@ -275,6 +275,37 @@ describe('session.history projections block', () => {
     await expect(extra).resolves.toEqual({ done: true, value: undefined })
   })
 
+  it('publishes documentLimits when the attachment store exposes them', async () => {
+    const { ctx, session } = await harness(true)
+    const imageLimits = {
+      maxImageBytes: 5 * 1024 * 1024,
+      maxImagesPerMessage: 20,
+      maxMessageImageBytes: 100 * 1024 * 1024,
+      maxImagePixels: 40_000_000,
+      maxImageDimension: 2000,
+      mediaTypes: ['image/png'] as const,
+    }
+    const documentLimits = {
+      maxDocumentBytes: 10 * 1024 * 1024,
+      maxDocumentsPerMessage: 5,
+      maxMessageDocumentBytes: 40 * 1024 * 1024,
+      maxExtractedCharsPerDocument: 50_000,
+      mediaTypes: ['text/plain'] as const,
+    }
+    await ctx.plugin(class extends AttachmentStore {
+      readonly imageLimits = imageLimits
+      override readonly documentLimits = documentLimits
+      validateImage(): Promise<void> { return Promise.resolve() }
+      saveImage(): Promise<never> { return Promise.reject(new Error('unused')) }
+      readImage(): Promise<never> { return Promise.reject(new Error('unused')) }
+    })
+    const gateway = remote(ctx)
+    await new Promise(resolve => setTimeout(resolve, 0))
+    seedMessages(session, 1)
+    const snapshot = await opening(gateway, session.id)
+    expect(snapshot.projections.values['documentLimits']).toEqual(documentLimits)
+  })
+
   it('leaves the imageLimits key absent while no attachment service is composed', async () => {
     const { ctx, session } = await harness(true)
     seedMessages(session, 1)

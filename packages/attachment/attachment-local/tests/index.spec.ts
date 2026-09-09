@@ -16,6 +16,11 @@ import LocalAttachmentStore, {
   DEFAULT_MAX_IMAGE_PIXELS,
   DEFAULT_MAX_IMAGES_PER_MESSAGE,
   DEFAULT_MAX_MESSAGE_IMAGE_BYTES,
+  DEFAULT_MAX_DOCUMENT_BYTES,
+  DEFAULT_MAX_DOCUMENTS_PER_MESSAGE,
+  DEFAULT_MAX_MESSAGE_DOCUMENT_BYTES,
+  DEFAULT_MAX_EXTRACTED_CHARS_PER_DOCUMENT,
+  DOCUMENT_MEDIA_TYPES,
 } from '../src/index.ts'
 
 describe('local attachment service', () => {
@@ -32,7 +37,14 @@ describe('local attachment service', () => {
       maxMessageImageBytes: DEFAULT_MAX_MESSAGE_IMAGE_BYTES,
       maxImagePixels: DEFAULT_MAX_IMAGE_PIXELS,
       maxImageDimension: DEFAULT_MAX_IMAGE_DIMENSION,
-      mediaTypes: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'],
+      mediaTypes: ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/bmp'],
+    })
+    expect(service.documentLimits).toEqual({
+      maxDocumentBytes: DEFAULT_MAX_DOCUMENT_BYTES,
+      maxDocumentsPerMessage: DEFAULT_MAX_DOCUMENTS_PER_MESSAGE,
+      maxMessageDocumentBytes: DEFAULT_MAX_MESSAGE_DOCUMENT_BYTES,
+      maxExtractedCharsPerDocument: DEFAULT_MAX_EXTRACTED_CHARS_PER_DOCUMENT,
+      mediaTypes: DOCUMENT_MEDIA_TYPES,
     })
     expect(service.normalizationPolicy).toEqual({
       maxPixels: DEFAULT_NORMALIZED_IMAGE_MAX_PIXELS,

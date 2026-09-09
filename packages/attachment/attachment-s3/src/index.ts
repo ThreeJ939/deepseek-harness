@@ -1,0 +1,449 @@
+/**
+ * S3-compatible content-addressed attachment store (MinIO / AWS S3).
+ * Image admission and normalization reuse `@deepseek-ai/dsh-attachment-local`;
+ * only the durable object medium is remote.
+ * @module @deepseek-ai/dsh-attachment-s3
+ */
+
+import { createHash } from 'node:crypto'
+import {
+  GetObjectCommand,
+  HeadObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3'
+import { Context } from '@deepseek-ai/cordis'
+import z from '@deepseek-ai/schemastery'
+import {
+  AttachmentError,
+  AttachmentId,
+  AttachmentStore,
+  ImageVariantId,
+  requestImageDimensions,
+} from '@deepseek-ai/dsh-attachment'
+import type {
+  DocumentAttachmentLimits,
+  DocumentAttachmentRef,
+  ImageAttachmentLimits,
+  ImageAttachmentRef,
+  ImageRequestPolicy,
+  RequestImageAttachment,
+  SaveDocumentAttachment,
+  SaveImageAttachment,
+  StoredDocumentAttachment,
+  StoredImageAttachment,
+} from '@deepseek-ai/dsh-attachment'
+import {
+  prepareImageFile,
+  validateImageFile,
+  type NormalizationPolicy,
+} from '@deepseek-ai/dsh-attachment-local'
+import sharp from 'sharp'
+import { CompressionLimiter } from './compression-limiter.ts'
+
+/** Default maximum encoded bytes for one submitted image. */
+export const DEFAULT_MAX_IMAGE_BYTES = 20 * 1024 * 1024
+/** Default maximum images in one prompt. */
+export const DEFAULT_MAX_IMAGES_PER_MESSAGE = 20
+/** Default maximum aggregate image bytes in one prompt. */
+export const DEFAULT_MAX_MESSAGE_IMAGE_BYTES = 200 * 1024 * 1024
+/** Default maximum intrinsic pixels for one submitted image. */
+export const DEFAULT_MAX_IMAGE_PIXELS = 64_000_000
+/** Default per-side pixel cap for one submitted image. */
+export const DEFAULT_MAX_IMAGE_DIMENSION = 8192
+/** Default total-pixel budget of the stored normalized image. */
+export const DEFAULT_NORMALIZED_IMAGE_MAX_PIXELS = 2048 * 2048
+/** Default long-edge cap of the stored normalized image. */
+export const DEFAULT_NORMALIZED_IMAGE_MAX_DIMENSION = 8192
+/** Default encoded-byte target for one stored normalized image. */
+export const DEFAULT_NORMALIZED_IMAGE_MAX_BYTES = 4 * 1024 * 1024
+/** Default simultaneous native image transformations per store. */
+export const DEFAULT_IMAGE_COMPRESSION_CONCURRENCY = 2
+/** Maximum configurable native image transformations per store. */
+export const MAX_IMAGE_COMPRESSION_CONCURRENCY = 8
+
+const ID_PATTERN = /^sha256:([a-f0-9]{64})$/
+const REQUEST_TRANSFORM_VERSION = 'request-image-s3-v1'
+
+/** Plugin configuration. */
+export interface Config {
+  /** S3 API endpoint (for MinIO, e.g. `http://127.0.0.1:9000`). */
+  endpoint: string
+  /** Target bucket name. */
+  bucket: string
+  /** Access key id. */
+  accessKeyId: string
+  /** Secret access key. */
+  secretAccessKey: string
+  /** AWS region; defaults to `us-east-1` (MinIO accepts any). */
+  region?: string
+  /** Force path-style addressing (required for most MinIO deployments). */
+  forcePathStyle?: boolean
+  /** Maximum encoded bytes accepted for one submitted image. */
+  maxImageBytes?: number
+  /** Maximum image count accepted in one submitted message. */
+  maxImagesPerMessage?: number
+  /** Maximum aggregate encoded image bytes accepted in one submitted message. */
+  maxMessageImageBytes?: number
+  /** Maximum intrinsic width multiplied by height. */
+  maxImagePixels?: number
+  /** Maximum intrinsic width and height. */
+  maxImageDimension?: number
+  /** Total-pixel budget of the stored normalized image. */
+  normalizedImageMaxPixels?: number
+  /** Long-edge pixel cap of the stored normalized image. */
+  normalizedImageMaxDimension?: number
+  /** Encoded-byte target of the stored normalized image. */
+  normalizedImageMaxBytes?: number
+  /** Maximum simultaneous normalization or request-image transformations. */
+  imageCompressionConcurrency?: number
+  /** Maximum encoded bytes accepted for one submitted document. */
+  maxDocumentBytes?: number
+  /** Maximum document count accepted in one submitted message. */
+  maxDocumentsPerMessage?: number
+  /** Maximum aggregate encoded document bytes accepted in one submitted message. */
+  maxMessageDocumentBytes?: number
+  /** Maximum characters retained from one document after text extraction. */
+  maxExtractedCharsPerDocument?: number
+}
+
+/** Default maximum encoded bytes for one submitted document. */
+export const DEFAULT_MAX_DOCUMENT_BYTES = 100 * 1024 * 1024
+/** Default maximum documents in one prompt. */
+export const DEFAULT_MAX_DOCUMENTS_PER_MESSAGE = 10
+/** Default maximum aggregate document bytes in one prompt. */
+export const DEFAULT_MAX_MESSAGE_DOCUMENT_BYTES = 200 * 1024 * 1024
+/** Default maximum extracted characters kept from one document. */
+export const DEFAULT_MAX_EXTRACTED_CHARS_PER_DOCUMENT = 50_000
+
+/** Document media types accepted by the S3 and local backends. */
+export const DOCUMENT_MEDIA_TYPES = Object.freeze([
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/vnd.ms-powerpoint',
+  'text/plain',
+  'application/json',
+  'text/markdown',
+  'text/csv',
+  'text/x-java-source',
+  'application/sql',
+  'application/epub+zip',
+] as const)
+
+function objectKey(sha256: string): string {
+  return `v1/objects/${sha256.slice(0, 2)}/${sha256}`
+}
+
+function documentObjectKey(sha256: string): string {
+  return `v1/documents/${sha256.slice(0, 2)}/${sha256}`
+}
+
+function displayName(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined
+  const leaf = value.slice(Math.max(value.lastIndexOf('/'), value.lastIndexOf('\\')) + 1)
+  const clean = leaf.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 255)
+  return clean === '' ? undefined : clean
+}
+
+function ensureReference(ref: ImageAttachmentRef): string {
+  const match = ID_PATTERN.exec(String(ref.attachmentId))
+  if (match?.[1] === undefined) {
+    throw new AttachmentError('Attachment reference is invalid.', 'INVALID_ATTACHMENT_REF')
+  }
+  return match[1]
+}
+
+function requestVariantId(ref: ImageAttachmentRef, policy: ImageRequestPolicy): ImageVariantId {
+  const digest = createHash('sha256')
+    .update(String(ref.attachmentId))
+    .update('\0')
+    .update(String(policy.maxPixels))
+    .update('\0')
+    .update(String(policy.maxBytes))
+    .update('\0')
+    .update(REQUEST_TRANSFORM_VERSION)
+    .digest('hex')
+  return ImageVariantId(`sha256:${digest}`)
+}
+
+async function streamToBuffer(body: unknown): Promise<Uint8Array> {
+  if (body === undefined || body === null) {
+    throw new AttachmentError('Attachment object is empty.', 'ATTACHMENT_NOT_FOUND')
+  }
+  if (body instanceof Uint8Array) return body
+  if (Buffer.isBuffer(body)) return new Uint8Array(body)
+  if (typeof body === 'string') return new TextEncoder().encode(body)
+  if (typeof (body as { transformToByteArray?: () => Promise<Uint8Array> }).transformToByteArray === 'function') {
+    return (body as { transformToByteArray: () => Promise<Uint8Array> }).transformToByteArray()
+  }
+  const chunks: Uint8Array[] = []
+  for await (const chunk of body as AsyncIterable<Uint8Array>) {
+    chunks.push(chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk as ArrayBuffer))
+  }
+  const total = chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0)
+  const out = new Uint8Array(total)
+  let offset = 0
+  for (const chunk of chunks) {
+    out.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  return out
+}
+
+/** Content-addressed S3 attachment store. */
+export class S3AttachmentStore extends AttachmentStore {
+  static Config: z<Config> = z.object({
+    endpoint: z.string().required(),
+    bucket: z.string().required(),
+    accessKeyId: z.string().required(),
+    secretAccessKey: z.string().required(),
+    region: z.string().default('us-east-1'),
+    forcePathStyle: z.boolean().default(true),
+    maxImageBytes: z.number().step(1).min(1).default(DEFAULT_MAX_IMAGE_BYTES),
+    maxImagesPerMessage: z.number().step(1).min(1).default(DEFAULT_MAX_IMAGES_PER_MESSAGE),
+    maxMessageImageBytes: z.number().step(1).min(1).default(DEFAULT_MAX_MESSAGE_IMAGE_BYTES),
+    maxImagePixels: z.number().step(1).min(1).default(DEFAULT_MAX_IMAGE_PIXELS),
+    maxImageDimension: z.number().step(1).min(1).default(DEFAULT_MAX_IMAGE_DIMENSION),
+    normalizedImageMaxPixels: z.number().step(1).min(1).default(DEFAULT_NORMALIZED_IMAGE_MAX_PIXELS),
+    normalizedImageMaxDimension: z.number().step(1).min(1).default(DEFAULT_NORMALIZED_IMAGE_MAX_DIMENSION),
+    normalizedImageMaxBytes: z.number().step(1).min(1).default(DEFAULT_NORMALIZED_IMAGE_MAX_BYTES),
+    imageCompressionConcurrency: z.number().step(1).min(1).max(MAX_IMAGE_COMPRESSION_CONCURRENCY)
+      .default(DEFAULT_IMAGE_COMPRESSION_CONCURRENCY),
+    maxDocumentBytes: z.number().step(1).min(1).default(DEFAULT_MAX_DOCUMENT_BYTES),
+    maxDocumentsPerMessage: z.number().step(1).min(1).default(DEFAULT_MAX_DOCUMENTS_PER_MESSAGE),
+    maxMessageDocumentBytes: z.number().step(1).min(1).default(DEFAULT_MAX_MESSAGE_DOCUMENT_BYTES),
+    maxExtractedCharsPerDocument: z.number().step(1).min(1).default(DEFAULT_MAX_EXTRACTED_CHARS_PER_DOCUMENT),
+  })
+
+  readonly imageLimits: ImageAttachmentLimits
+  override readonly documentLimits: DocumentAttachmentLimits
+  readonly normalizationPolicy: Readonly<NormalizationPolicy>
+  readonly imageCompressionConcurrency: number
+  private readonly client: S3Client
+  private readonly bucket: string
+  private readonly compression: CompressionLimiter
+
+  constructor(ctx: Context, config: Config, client?: S3Client) {
+    super(ctx)
+    this.bucket = config.bucket
+    this.client = client ?? new S3Client({
+      endpoint: config.endpoint,
+      region: config.region ?? 'us-east-1',
+      forcePathStyle: config.forcePathStyle ?? true,
+      credentials: {
+        accessKeyId: config.accessKeyId,
+        secretAccessKey: config.secretAccessKey,
+      },
+    })
+    this.imageLimits = Object.freeze({
+      maxImageBytes: config.maxImageBytes ?? DEFAULT_MAX_IMAGE_BYTES,
+      maxImagesPerMessage: config.maxImagesPerMessage ?? DEFAULT_MAX_IMAGES_PER_MESSAGE,
+      maxMessageImageBytes: config.maxMessageImageBytes ?? DEFAULT_MAX_MESSAGE_IMAGE_BYTES,
+      maxImagePixels: config.maxImagePixels ?? DEFAULT_MAX_IMAGE_PIXELS,
+      maxImageDimension: config.maxImageDimension ?? DEFAULT_MAX_IMAGE_DIMENSION,
+      mediaTypes: Object.freeze(['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/bmp'] as const),
+    })
+    this.documentLimits = Object.freeze({
+      maxDocumentBytes: config.maxDocumentBytes ?? DEFAULT_MAX_DOCUMENT_BYTES,
+      maxDocumentsPerMessage: config.maxDocumentsPerMessage ?? DEFAULT_MAX_DOCUMENTS_PER_MESSAGE,
+      maxMessageDocumentBytes: config.maxMessageDocumentBytes ?? DEFAULT_MAX_MESSAGE_DOCUMENT_BYTES,
+      maxExtractedCharsPerDocument: config.maxExtractedCharsPerDocument
+        ?? DEFAULT_MAX_EXTRACTED_CHARS_PER_DOCUMENT,
+      mediaTypes: DOCUMENT_MEDIA_TYPES,
+    })
+    this.normalizationPolicy = Object.freeze({
+      maxPixels: config.normalizedImageMaxPixels ?? DEFAULT_NORMALIZED_IMAGE_MAX_PIXELS,
+      maxDimension: config.normalizedImageMaxDimension ?? DEFAULT_NORMALIZED_IMAGE_MAX_DIMENSION,
+      maxBytes: config.normalizedImageMaxBytes ?? DEFAULT_NORMALIZED_IMAGE_MAX_BYTES,
+    })
+    const compressionConcurrency = config.imageCompressionConcurrency ?? DEFAULT_IMAGE_COMPRESSION_CONCURRENCY
+    this.imageCompressionConcurrency = compressionConcurrency
+    this.compression = new CompressionLimiter(compressionConcurrency)
+    ctx.effect(() => () => {
+      this.client.destroy()
+    }, 'attachment-s3.client')
+  }
+
+  async validateImage(input: SaveImageAttachment): Promise<void> {
+    await this.compression.run(() => validateImageFile(input, this.imageLimits, this.normalizationPolicy))
+  }
+
+  override async saveImages(inputs: readonly SaveImageAttachment[]): Promise<readonly ImageAttachmentRef[]> {
+    this.validateImageBatch(inputs)
+    const prepared = await Promise.all(inputs.map(input => this.compression.run(
+      () => prepareImageFile(input, this.imageLimits, this.normalizationPolicy),
+    )))
+    const refs: ImageAttachmentRef[] = []
+    for (const image of prepared) {
+      refs.push(await this.commitPrepared(image.data, image.ref))
+    }
+    return refs
+  }
+
+  async saveImage(input: SaveImageAttachment): Promise<ImageAttachmentRef> {
+    const prepared = await this.compression.run(
+      () => prepareImageFile(input, this.imageLimits, this.normalizationPolicy),
+    )
+    return this.commitPrepared(prepared.data, prepared.ref)
+  }
+
+  async readImage(ref: ImageAttachmentRef, signal?: AbortSignal): Promise<StoredImageAttachment> {
+    signal?.throwIfAborted()
+    const sha256 = ensureReference(ref)
+    const response = await this.client.send(new GetObjectCommand({
+      Bucket: this.bucket,
+      Key: objectKey(sha256),
+    }), signal === undefined ? undefined : { abortSignal: signal })
+    const data = await streamToBuffer(response.Body)
+    const digest = createHash('sha256').update(data).digest('hex')
+    if (digest !== sha256) {
+      throw new AttachmentError('Stored attachment bytes do not match the reference digest.', 'ATTACHMENT_CORRUPT')
+    }
+    if (data.byteLength !== ref.bytes) {
+      throw new AttachmentError('Stored attachment size does not match the reference.', 'ATTACHMENT_CORRUPT')
+    }
+    return { ref, data }
+  }
+
+  override imageHostPath(_ref: ImageAttachmentRef): string | undefined {
+    return undefined
+  }
+
+  override async readImageRequest(
+    ref: ImageAttachmentRef,
+    policy: ImageRequestPolicy,
+    signal?: AbortSignal,
+  ): Promise<RequestImageAttachment> {
+    const stored = await this.readImage(ref, signal)
+    return this.compression.run(() => this.projectRequest(stored, policy, signal))
+  }
+
+  override async saveDocument(input: SaveDocumentAttachment): Promise<DocumentAttachmentRef> {
+    this.validateDocumentBatch([input])
+    const sha256 = createHash('sha256').update(input.data).digest('hex')
+    const name = displayName(input.name)
+    const ref: DocumentAttachmentRef = {
+      attachmentId: AttachmentId(`sha256:${sha256}`),
+      mediaType: input.mediaType,
+      bytes: input.data.byteLength,
+      ...name === undefined ? {} : { name },
+    }
+    const key = documentObjectKey(sha256)
+    try {
+      await this.client.send(new HeadObjectCommand({ Bucket: this.bucket, Key: key }))
+      return ref
+    } catch (error: unknown) {
+      const status = (error as { $metadata?: { httpStatusCode?: number }; name?: string }).$metadata?.httpStatusCode
+      const errorName = (error as { name?: string }).name
+      if (status !== 404 && errorName !== 'NotFound' && errorName !== 'NoSuchKey') throw error
+    }
+    await this.client.send(new PutObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+      Body: input.data,
+      ContentType: input.mediaType,
+      ContentLength: input.data.byteLength,
+    }))
+    return ref
+  }
+
+  override async readDocument(
+    ref: DocumentAttachmentRef,
+    signal?: AbortSignal,
+  ): Promise<StoredDocumentAttachment> {
+    signal?.throwIfAborted()
+    const match = ID_PATTERN.exec(String(ref.attachmentId))
+    if (match?.[1] === undefined) {
+      throw new AttachmentError('Attachment reference is invalid.', 'INVALID_ATTACHMENT_REF')
+    }
+    const sha256 = match[1]
+    const response = await this.client.send(new GetObjectCommand({
+      Bucket: this.bucket,
+      Key: documentObjectKey(sha256),
+    }), signal === undefined ? undefined : { abortSignal: signal })
+    const data = await streamToBuffer(response.Body)
+    const digest = createHash('sha256').update(data).digest('hex')
+    if (digest !== sha256) {
+      throw new AttachmentError('Stored attachment bytes do not match the reference digest.', 'ATTACHMENT_CORRUPT')
+    }
+    if (data.byteLength !== ref.bytes) {
+      throw new AttachmentError('Stored attachment size does not match the reference.', 'ATTACHMENT_CORRUPT')
+    }
+    return { ref, data }
+  }
+
+  private async commitPrepared(data: Uint8Array, ref: ImageAttachmentRef): Promise<ImageAttachmentRef> {
+    const sha256 = ensureReference(ref)
+    const key = objectKey(sha256)
+    try {
+      await this.client.send(new HeadObjectCommand({ Bucket: this.bucket, Key: key }))
+      return ref
+    } catch (error: unknown) {
+      const status = (error as { $metadata?: { httpStatusCode?: number }; name?: string }).$metadata?.httpStatusCode
+      const name = (error as { name?: string }).name
+      if (status !== 404 && name !== 'NotFound' && name !== 'NoSuchKey') throw error
+    }
+    await this.client.send(new PutObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+      Body: data,
+      ContentType: ref.mediaType,
+      ContentLength: data.byteLength,
+    }))
+    return ref
+  }
+
+  private async projectRequest(
+    stored: StoredImageAttachment,
+    policy: ImageRequestPolicy,
+    signal?: AbortSignal,
+  ): Promise<RequestImageAttachment> {
+    signal?.throwIfAborted()
+    const target = requestImageDimensions(stored.ref.width, stored.ref.height, policy.maxPixels)
+    let pipeline = sharp(Buffer.from(stored.data), { failOn: 'none' }).rotate()
+    if (target.width !== stored.ref.width || target.height !== stored.ref.height) {
+      pipeline = pipeline.resize(target.width, target.height, { fit: 'inside', withoutEnlargement: true })
+    }
+    const { data, info } = await pipeline.webp({ quality: 80, effort: 4 }).toBuffer({ resolveWithObject: true })
+    if (data.byteLength > policy.maxBytes) {
+      const tighter = await sharp(data).webp({ quality: 50, effort: 4 }).toBuffer({ resolveWithObject: true })
+      return this.requestAttachment(
+        stored.ref,
+        policy,
+        tighter.data,
+        tighter.info.width,
+        tighter.info.height,
+        tighter.info.hasAlpha === true,
+      )
+    }
+    return this.requestAttachment(stored.ref, policy, data, info.width, info.height, info.hasAlpha === true)
+  }
+
+  private requestAttachment(
+    attachment: ImageAttachmentRef,
+    policy: ImageRequestPolicy,
+    data: Uint8Array,
+    width: number,
+    height: number,
+    hasAlpha: boolean,
+  ): RequestImageAttachment {
+    return {
+      variantId: requestVariantId(attachment, policy),
+      attachment,
+      data,
+      mediaType: 'image/webp',
+      bytes: data.byteLength,
+      width,
+      height,
+      depth: 'uchar',
+      space: 'srgb',
+      hasAlpha,
+    }
+  }
+}
+
+export default S3AttachmentStore

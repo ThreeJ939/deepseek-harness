@@ -22,7 +22,7 @@ export interface TokenSpan {
 
 /** Base64 image payload passed to a claimed command submission. */
 export interface SubmitImageAttachment {
-  readonly mediaType: 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif'
+  readonly mediaType: 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif' | 'image/bmp'
   readonly data: string
   readonly name?: string
 }

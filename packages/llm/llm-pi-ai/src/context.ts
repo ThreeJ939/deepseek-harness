@@ -5,7 +5,7 @@
  */
 
 import { brandString } from '@deepseek-ai/dsh-brand'
-import { contentHasImage, LlmError, offloadedImageText, offloadRequestImagesWithPolicy, requestImageHandleText } from '@deepseek-ai/dsh-llm'
+import { contentHasImage, expandDocumentBlocks, LlmError, offloadedImageText, offloadRequestImagesWithPolicy, requestImageHandleText } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock, GenerateOptions, ImageAttachmentAccessResolver, Message, ToolCallId } from '@deepseek-ai/dsh-llm'
 import type {
   AttachmentId,
@@ -152,9 +152,11 @@ function appendAssistant(
 }
 
 function textOnlyContext(options: GenerateOptions, onReplayDegrade?: (reason: string) => void): PiContext {
+  const expanded = expandDocumentBlocks(options.messages)
+  const expandedOptions = expanded === options.messages ? options : { ...options, messages: [...expanded] }
   const toolNames = new Map<ToolCallId, string>()
   const messages: PiMessage[] = []
-  for (const message of options.messages) {
+  for (const message of expandedOptions.messages) {
     if (contentHasImage(message.content)) {
       throw new LlmError('pi-ai image conversion requires the durable attachment service', 'UNSUPPORTED_CONTENT')
     }
@@ -183,7 +185,7 @@ function textOnlyContext(options: GenerateOptions, onReplayDegrade?: (reason: st
       })
     }
   }
-  return piContext(options, messages)
+  return piContext(expandedOptions, messages)
 }
 
 /** Inputs that bind deterministic request images to one current tool execution world. */
@@ -247,8 +249,10 @@ async function toPiContextWithImages(
     maxPixels: DEFAULT_REQUEST_IMAGE_PIXEL_BUDGET,
     maxBytes: DEFAULT_REQUEST_IMAGE_MAX_BYTES,
   }
-  assertSupportedImageRoles(options.messages)
-  const requestMessages = offloadRequestImagesWithPolicy(options.messages, {
+  const expanded = expandDocumentBlocks(options.messages)
+  const baseMessages = expanded === options.messages ? options.messages : expanded
+  assertSupportedImageRoles(baseMessages)
+  const requestMessages = offloadRequestImagesWithPolicy(baseMessages, {
     representation: 'base64',
     ...maxRequestImageBytes === undefined ? {} : { maxBytes: maxRequestImageBytes },
     byteQuantum: 1,
@@ -302,5 +306,5 @@ async function toPiContextWithImages(
     }
   }
 
-  return piContext(options, messages)
+  return piContext(expanded === options.messages ? options : { ...options, messages: [...expanded] }, messages)
 }

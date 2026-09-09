@@ -4,8 +4,9 @@ import { randomUUID } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import type { Agent, ModelSelection as AgentModelSelection } from '@deepseek-ai/dsh-agent'
-import { AttachmentError, admitPromptContent } from '@deepseek-ai/dsh-attachment'
+import { AttachmentError, admitPromptContent, admittedPartsToContentBlocks } from '@deepseek-ai/dsh-attachment'
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
+import { extractText } from '@deepseek-ai/dsh-attachment-document'
 import {
   ReasoningEffortId, createUserMessage, freezeMessage,
 } from '@deepseek-ai/dsh-llm'
@@ -311,6 +312,7 @@ export class SessionCommandController {
       ...(clientTimeZone === undefined ? {} : { clientTimeZone }),
     }
     const hasImage = request.content.some(part => part.type === 'image')
+    const hasDocument = request.content.some(part => part.type === 'document')
     const admit = async (): Promise<SessionPromptValue> => {
       try {
         if (hasImage) {
@@ -324,7 +326,12 @@ export class SessionCommandController {
             )
           }
         }
-        const content = await admitPromptContent(this.ctx.attachments, request.content)
+        const admitted = await admitPromptContent(
+          this.ctx.attachments,
+          request.content,
+          hasDocument ? { extractDocumentText: extractText } : undefined,
+        )
+        const content = admittedPartsToContentBlocks(admitted)
         const message: UserMessage = createUserMessage({ content, source })
         if (request.mode === 'steer') agent.steer(message)
         else agent.followup(message)
@@ -337,7 +344,7 @@ export class SessionCommandController {
       }
       return { accepted: true }
     }
-    return hasImage ? this.agents.serializeImageAdmission(agent, admit) : admit()
+    return hasImage || hasDocument ? this.agents.serializeImageAdmission(agent, admit) : admit()
   }
 
   /**

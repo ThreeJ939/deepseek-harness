@@ -111,7 +111,7 @@ Adding an image changes the provider request and therefore invalidates the affec
 
 These limits describe what image attachments can and cannot do; they are current package constraints, not a task backlog.
 
-- **Raster images only** — PNG, JPEG, WebP, and GIF are accepted; generic files, audio, and video are not supported yet.
+- **Raster images only** — PNG, JPEG, WebP, GIF, and BMP are accepted on the image path; audio and video are not supported yet. Document uploads use the separate document attachment path and extractor package.
 - **Images are never deleted** — stored images are retained indefinitely; nothing removes them automatically.
 - **Unsent drafts are not saved** — a composer draft stays in the browser until you submit the message.
 

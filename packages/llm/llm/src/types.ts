@@ -5,7 +5,7 @@
  */
 
 import type { Branded } from '@deepseek-ai/dsh-brand'
-import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
+import type { DocumentAttachmentRef, ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import type { ToolCallId, ProviderRequestId, ReasoningEffortId } from './brand.ts'
 import type { Message } from './message.ts'
 
@@ -74,6 +74,20 @@ export interface ImageBlock {
   attachment: ImageAttachmentRef
 }
 
+/**
+ * A user-uploaded document with extracted plain text. The LLM adapters expand
+ * this block into a framed text block before sending the request; the block
+ * survives durable in the session log so the UI can render a chip without
+ * re-parsing the framed text.
+ */
+export interface DocumentBlock {
+  type: 'document'
+  /** Durable reference to the stored document bytes. */
+  attachment: DocumentAttachmentRef
+  /** Model-visible plain text extracted from the document at admission time. */
+  extractedText: string
+}
+
 /** A tool invocation requested by the model. */
 export interface ToolCallBlock {
   type: 'tool-call'
@@ -100,6 +114,7 @@ export interface ContentBlockMap {
   'text': TextBlock
   'reasoning': ReasoningBlock
   'image': ImageBlock
+  'document': DocumentBlock
   'tool-call': ToolCallBlock
   'tool-result': ToolResultBlock
 }

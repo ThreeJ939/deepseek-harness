@@ -23,6 +23,7 @@ function imageRef(mediaType: ImageMediaType = 'image/png', bytes = 3): ImageAtta
     'image/jpeg': 'b',
     'image/webp': 'c',
     'image/gif': 'd',
+    'image/bmp': 'e',
   } as const)[mediaType]
   return {
     attachmentId: AttachmentId(`sha256:${digit.repeat(64)}`),

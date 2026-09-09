@@ -40,7 +40,7 @@ import css from './InputBar.module.css'
 export type InputBarProps = ComposerBarProps
 
 export const InputBar = memo(function InputBar({
-  useSession, useInput, inputActions, keyboard, addImages, removeImage, draftImages,
+  useSession, useInput, inputActions, keyboard, addImages, addDocuments, removeImage, draftImages,
   resolveSubmitMode, toggleCommandMenu, stop, command, t,
   renderSlot, useNotices, useLexicon, useMenuLauncher,
   useProjection, sessionId, variant, disabled: inert = false, blocked,
@@ -83,6 +83,7 @@ export const InputBar = memo(function InputBar({
   // The deployment's image-intake limits (absent while no attachment service
   // is composed — the pre-check below then defers entirely to the host).
   const imageLimits = useProjection('imageLimits')
+  const documentLimits = useProjection('documentLimits')
   // Prompt failures are ordinary failures (no create/attach transaction exists
   // anymore): the toast announces promptError, the draft stays in the machine,
   // and the user resubmits. A remount over a session whose machine still holds
@@ -95,9 +96,9 @@ export const InputBar = memo(function InputBar({
     if (promptError === null) return
     const { error } = promptError
     showToast(error.code === 'session/attachment-invalid' || error.code === 'subagent/attachment-invalid'
-      ? attachmentErrorText(t, error.details.reason, imageLimits)
+      ? attachmentErrorText(t, error.details.reason, imageLimits, documentLimits ?? undefined)
       : `${error.message} (${error.code})`)
-  }, [promptError, showToast, t, imageLimits])
+  }, [promptError, showToast, t, imageLimits, documentLimits])
   useEffect(() => {
     if (notice?.level === 'error') showToast(notice.text)
   }, [notice, showToast])
@@ -219,6 +220,7 @@ export const InputBar = memo(function InputBar({
   // this composer.
   const intakeImages = useCallback((files: readonly File[]): void => {
     if (addImages === undefined || files.length === 0) return
+    const draftImages = attachments.filter(attachment => attachment.kind === 'image')
     const rejected = ((): string | null => {
       if (imageLimits !== undefined) {
         // Format precedes limits: a batch with
@@ -227,13 +229,13 @@ export const InputBar = memo(function InputBar({
         if (files.some(file => !(imageLimits.mediaTypes as readonly string[]).includes(file.type))) {
           return addImages(files)
         }
-        if (attachments.length + files.length > imageLimits.maxImagesPerMessage) {
+        if (draftImages.length + files.length > imageLimits.maxImagesPerMessage) {
           return t('image.tooMany', { count: imageLimits.maxImagesPerMessage })
         }
         if (files.some(file => file.size > imageLimits.maxImageBytes)) {
           return t('image.fileTooLarge', { size: imageSizeText(imageLimits.maxImageBytes) })
         }
-        const total = attachments.reduce((sum, attachment) => sum + attachment.file.size, 0)
+        const total = draftImages.reduce((sum, attachment) => sum + attachment.file.size, 0)
           + files.reduce((sum, file) => sum + file.size, 0)
         if (total > imageLimits.maxMessageImageBytes) {
           return t('image.totalTooLarge', { size: imageSizeText(imageLimits.maxMessageImageBytes) })
@@ -244,7 +246,31 @@ export const InputBar = memo(function InputBar({
     if (rejected !== null) showToast(rejected)
   }, [addImages, attachments, imageLimits, showToast, t])
 
-  const canAcceptDrop = !locked && !machineBusy && addImages !== undefined
+  const documentInput = useRef<HTMLInputElement>(null)
+  const intakeDocuments = useCallback((files: readonly File[]): void => {
+    if (addDocuments === undefined || files.length === 0) return
+    const draftDocuments = attachments.filter(attachment => attachment.kind === 'document')
+    const rejected = ((): string | null => {
+      if (documentLimits != null) {
+        if (draftDocuments.length + files.length > documentLimits.maxDocumentsPerMessage) {
+          return t('document.tooMany', { count: documentLimits.maxDocumentsPerMessage })
+        }
+        if (files.some(file => file.size > documentLimits.maxDocumentBytes)) {
+          return t('document.fileTooLarge', { size: imageSizeText(documentLimits.maxDocumentBytes) })
+        }
+        const total = draftDocuments.reduce((sum, attachment) => sum + attachment.file.size, 0)
+          + files.reduce((sum, file) => sum + file.size, 0)
+        if (total > documentLimits.maxMessageDocumentBytes) {
+          return t('document.totalTooLarge', { size: imageSizeText(documentLimits.maxMessageDocumentBytes) })
+        }
+      }
+      return addDocuments(files)
+    })()
+    if (rejected !== null) showToast(rejected)
+  }, [addDocuments, attachments, documentLimits, showToast, t])
+
+  const canAcceptDrop = !locked && !machineBusy
+    && (addImages !== undefined || addDocuments !== undefined)
 
   // The keymap handlers read live bar state through this ref so the editor
   // registration survives re-renders without re-arming per keystroke.
@@ -399,6 +425,7 @@ export const InputBar = memo(function InputBar({
           attachments,
           canAcceptDrop,
           onAddImages: intakeImages,
+          onAddDocuments: intakeDocuments,
           onRemoveImage: (id) => { removeImage?.(id) },
           dropLimits: imageLimits === undefined ? undefined : {
             count: imageLimits.maxImagesPerMessage,
@@ -450,6 +477,30 @@ export const InputBar = memo(function InputBar({
                 onClick={onToggleCommandMenu}
               >
                 <IconPlusOutline16 size={14} />
+              </button>
+            </Tooltip>
+            <input
+              ref={documentInput}
+              type="file"
+              accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.json,.md,.markdown,.csv,.java,.sql,.epub,application/pdf,text/plain,application/json"
+              multiple
+              hidden
+              onChange={(event) => {
+                const files = event.target.files === null ? [] : [...event.target.files]
+                event.target.value = ''
+                intakeDocuments(files)
+              }}
+            />
+            <Tooltip label={t('document.pick')} side="top" delayMs={500}>
+              <button
+                type="button"
+                className={css.add}
+                aria-label={t('document.pick')}
+                disabled={locked || machineBusy || addDocuments === undefined}
+                onMouseDown={keepFocus}
+                onClick={() => { documentInput.current?.click() }}
+              >
+                <span className={css.docMark} aria-hidden>D</span>
               </button>
             </Tooltip>
             <div className={css.modes}>

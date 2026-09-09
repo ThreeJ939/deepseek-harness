@@ -1,5 +1,5 @@
 ---
-description: "Package map for the durable image attachment capability family: what you can do with image attachments, and where your images are stored."
+description: "Package map for the durable attachment capability family: images, documents, and where files are stored."
 kind: "package-group"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-The `attachment/` group provides durable image attachments: attach images to prompts and commands, and the harness saves them on your machine, shows them again in conversation history, and sends them to the model in later turns. The shipped `dsh` composition enables this with no setup. The capability and its storage are split across two packages, described below. Stored images survive restarts and are never deleted automatically, and only raster image formats are supported.
+The `attachment/` group provides durable image and document attachments: attach images or documents to prompts and commands, and the harness saves them, shows images again in conversation history, injects extracted document text into the user message, and sends the resulting content to the model in later turns. The shipped `dsh` composition enables this with no setup. The capability and its storage are split across packages, described below. Stored attachments survive restarts and are never deleted automatically.
 
 ## Table of Contents
 
@@ -22,12 +22,14 @@ The `attachment/` group provides durable image attachments: attach images to pro
 <a id="packages"></a>
 ## Packages
 
-These two packages provide durable image attachments; each README describes what you can do with its part.
+These packages provide durable attachments; each README describes what you can do with its part.
 
 | Package | Role | ctx key |
 |---|---|---|
-| [`attachment/`](attachment/README.md) | Image attachments for prompts and commands that persist and come back in history | `ctx.attachments` |
-| [`attachment-local/`](attachment-local/README.md) | Stores your attached images on this machine below `DSH_HOME` | registers on `ctx.attachments` |
+| [`attachment/`](attachment/README.md) | Image and document attachments for prompts and commands that persist and come back in history | `ctx.attachments` |
+| [`attachment-local/`](attachment-local/README.md) | Stores your attached files on this machine below `DSH_HOME` | registers on `ctx.attachments` |
+| [`attachment-s3/`](attachment-s3/README.md) | Stores your attached files in an S3-compatible bucket | registers on `ctx.attachments` |
+| [`attachment-document/`](attachment-document/README.md) | Extracts plain text from admitted documents for prompt injection | library (no ctx key) |
 
 -----
 

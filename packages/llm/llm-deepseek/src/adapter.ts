@@ -8,7 +8,7 @@
  * @module dsh-llm-deepseek/adapter
  */
 
-import { attributionHeaders, contentHasImage, CONTEXT_WINDOW_EXCEEDED_CODE, isContextWindowExceededError, isQuotaExceededError, LlmAdapter, LlmError, offloadedImageText, offloadRequestImagesWithPolicy, ProviderRequestId, QUOTA_EXCEEDED_CODE, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
+import { attributionHeaders, contentHasImage, CONTEXT_WINDOW_EXCEEDED_CODE, expandDocumentBlocks, isContextWindowExceededError, isQuotaExceededError, LlmAdapter, LlmError, offloadedImageText, offloadRequestImagesWithPolicy, ProviderRequestId, QUOTA_EXCEEDED_CODE, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import type {
   ContentBlock,
   GenerateOptions,
@@ -549,7 +549,11 @@ export class DeepSeekAdapter extends LlmAdapter {
       ? undefined
       : (ref: ImageAttachmentRef): ImageAttachmentAccess | undefined => this.config.resolveImageAccess?.(attachments, ref)
     const imageAccessOptions = resolveImageAccess === undefined ? {} : { resolveImageAccess }
-    const requestMessages = policy === undefined ? options.messages : offloadRequestImagesWithPolicy(options.messages, {
+    const expandedMessages = expandDocumentBlocks(options.messages)
+    const expandedOptions = expandedMessages === options.messages
+      ? options
+      : { ...options, messages: [...expandedMessages] }
+    const requestMessages = policy === undefined ? expandedOptions.messages : offloadRequestImagesWithPolicy(expandedOptions.messages, {
       representation: 'raw',
       maxBytes: connection.maxRequestFilesBytes,
       maxImages: connection.maxImagesPerRequest,
@@ -558,7 +562,9 @@ export class DeepSeekAdapter extends LlmAdapter {
       byteLength: ref => Math.min(ref.bytes, policy.maxBytes),
       placeholder: ref => offloadedImageText(ref, resolveImageAccess?.(ref)),
     })
-    const requestOptions = requestMessages === options.messages ? options : { ...options, messages: [...requestMessages] }
+    const requestOptions = requestMessages === expandedOptions.messages
+      ? expandedOptions
+      : { ...expandedOptions, messages: [...requestMessages] }
     const requestImages = attachments === undefined || model === undefined
       ? new Map<AttachmentId, RequestImageAttachment>()
       : await prepareRequestImages(requestOptions, attachments, model, signal)

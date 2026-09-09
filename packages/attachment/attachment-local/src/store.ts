@@ -9,9 +9,12 @@ import {
   AttachmentId,
 } from '@deepseek-ai/dsh-attachment'
 import type {
+  DocumentAttachmentRef,
   ImageAttachmentLimits,
   ImageAttachmentRef,
+  SaveDocumentAttachment,
   SaveImageAttachment,
+  StoredDocumentAttachment,
   StoredImageAttachment,
 } from '@deepseek-ai/dsh-attachment'
 import { normalizeImage } from './normalization.ts'
@@ -303,6 +306,118 @@ export async function readImageFile(
   if (metadata.mediaType !== ref.mediaType || data.byteLength !== ref.bytes
     || metadata.width !== ref.width || metadata.height !== ref.height) {
     throw new AttachmentError('Stored attachment metadata does not match its reference.', 'ATTACHMENT_CORRUPT')
+  }
+  return { ref, data }
+}
+
+/**
+ * Derive the absolute immutable-object path for one uploaded document.
+ * @param root - absolute `DSH_HOME/attachments/v1` root.
+ * @param ref - durable document reference.
+ * @returns provider-local path without reading the object.
+ */
+export function documentPath(root: string, ref: DocumentAttachmentRef): string {
+  const match = ID_PATTERN.exec(String(ref.attachmentId))
+  if (match?.[1] === undefined) throw new AttachmentError('Attachment reference is invalid.', 'INVALID_ATTACHMENT_REF')
+  const sha256 = match[1]
+  return join(root, 'documents', sha256.slice(0, 2), sha256)
+}
+
+/**
+ * Persist one document below a versioned attachment root without transformation.
+ * @param root - absolute `DSH_HOME/attachments/v1` root.
+ * @param input - submitted encoded bytes and declared media type.
+ * @returns durable content-addressed document reference.
+ */
+export async function saveDocumentFile(
+  root: string,
+  input: SaveDocumentAttachment,
+): Promise<DocumentAttachmentRef> {
+  if (input.data.byteLength === 0) {
+    throw new AttachmentError('Document is empty.', 'INVALID_DOCUMENT')
+  }
+  const sha256 = digest(input.data)
+  const name = displayName(input.name)
+  const ref: DocumentAttachmentRef = {
+    attachmentId: AttachmentId(`sha256:${sha256}`),
+    mediaType: input.mediaType,
+    bytes: input.data.byteLength,
+    ...name === undefined ? {} : { name },
+  }
+  const bucket = join(root, 'documents', sha256.slice(0, 2))
+  const staging = join(root, 'tmp')
+  const boundary = await ensureDurableHome(dirname(dirname(resolve(root))))
+  await ensureDurableDirectory(bucket, boundary)
+  await ensureDurableDirectory(staging, boundary)
+  const temporary = join(staging, randomUUID())
+  const target = documentPath(root, ref)
+  let handle
+  try {
+    handle = await open(temporary, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY, 0o600)
+    await handle.writeFile(input.data)
+    await handle.sync()
+    await handle.close()
+    handle = undefined
+    try {
+      await link(temporary, target)
+    } catch (error) {
+      /* v8 ignore next -- Private same-filesystem directories make EEXIST the only recoverable link race. */
+      if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST')) throw error
+      const existing = new Uint8Array(await readFile(target))
+      if (digest(existing) !== sha256) throw new AttachmentError('Stored attachment failed integrity verification.', 'ATTACHMENT_CORRUPT')
+    }
+    await unlink(temporary)
+    await chmod(target, 0o400)
+    await syncDirectory(bucket)
+    await syncDirectory(join(root, 'documents'))
+  } catch (error) {
+    /* v8 ignore next -- A descriptor can remain open only when the underlying write/sync/close operation fails. */
+    if (handle !== undefined) await handle.close().catch(
+      /* v8 ignore next -- Close failure is superseded by the storage operation that entered cleanup. */
+      () => {},
+    )
+    await unlink(temporary).catch(
+      /* v8 ignore next -- The callback requires a second independent staging-unlink failure. */
+      (cleanupError: unknown) => {
+        /* v8 ignore next -- Cleanup is best-effort only for a staging file already removed by a failed operation. */
+        if (!(cleanupError instanceof Error && 'code' in cleanupError && cleanupError.code === 'ENOENT')) throw cleanupError
+      },
+    )
+    if (error instanceof AttachmentError) throw error
+    throw new AttachmentError('Unable to persist document attachment.', 'ATTACHMENT_WRITE_FAILED', { cause: error })
+  }
+  return ref
+}
+
+/**
+ * Read and verify one content-addressed document.
+ * @param root - absolute `DSH_HOME/attachments/v1` root.
+ * @param ref - reference recorded in the session log.
+ * @param signal - optional cancellation for filesystem and verification work.
+ * @returns verified bytes and reference.
+ */
+export async function readDocumentFile(
+  root: string,
+  ref: DocumentAttachmentRef,
+  signal?: AbortSignal,
+): Promise<StoredDocumentAttachment> {
+  signal?.throwIfAborted()
+  const match = ID_PATTERN.exec(String(ref.attachmentId))
+  if (match?.[1] === undefined) throw new AttachmentError('Attachment reference is invalid.', 'INVALID_ATTACHMENT_REF')
+  const sha256 = match[1]
+  let data: Uint8Array
+  try {
+    data = new Uint8Array(await readFile(documentPath(root, ref), { signal }))
+  } catch (error) {
+    signal?.throwIfAborted()
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+      throw new AttachmentError('Attachment object is missing.', 'ATTACHMENT_NOT_FOUND')
+    }
+    throw new AttachmentError('Unable to read document attachment.', 'ATTACHMENT_READ_FAILED', { cause: error })
+  }
+  signal?.throwIfAborted()
+  if (digest(data) !== sha256 || data.byteLength !== ref.bytes) {
+    throw new AttachmentError('Stored attachment failed integrity verification.', 'ATTACHMENT_CORRUPT')
   }
   return { ref, data }
 }

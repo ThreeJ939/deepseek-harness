@@ -22,27 +22,37 @@ import type { ComposerSubmitGesture, InputSubmitMode } from './composer-submissi
 import type { ConversationSnapshot } from './snapshot.ts'
 import type { ViewTab } from './views.ts'
 
-/** Browser-owned image that has not crossed the durable Host boundary. */
-export interface ComposerAttachment {
-  kind: 'image'
-  id: DraftAttachmentId
-  file: File
-  previewUrl: string
-  /** Intrinsic pixel width, filled asynchronously by the intake header probe. */
-  width?: number
-  /** Intrinsic pixel height, filled asynchronously by the intake header probe. */
-  height?: number
-}
+/** Browser-owned draft attachment that has not crossed the durable Host boundary. */
+export type ComposerAttachment =
+  | {
+    kind: 'image'
+    id: DraftAttachmentId
+    file: File
+    previewUrl: string
+    /** Intrinsic pixel width, filled asynchronously by the intake header probe. */
+    width?: number
+    /** Intrinsic pixel height, filled asynchronously by the intake header probe. */
+    height?: number
+  }
+  | {
+    kind: 'document'
+    id: DraftAttachmentId
+    file: File
+    /** Declared document media type for wire admission. */
+    mediaType: import('@deepseek-ai/dsh-attachment').DocumentMediaType
+  }
 
 /** Input state handed to the optional attachment presentation plugin. */
 export interface ComposerAttachmentsOwnerProps {
-  /** Browser-owned draft images in input order. */
+  /** Browser-owned draft attachments in input order. */
   attachments: readonly ComposerAttachment[]
   /** Whether a document-level file drop may add images now. */
   canAcceptDrop: boolean
-  /** Add one dropped batch through the composer's validation path. */
+  /** Add one dropped or picked image batch through the composer's validation path. */
   onAddImages: (files: readonly File[]) => void
-  /** Remove one draft image through the Conversation service. */
+  /** Add one picked document batch through the composer's validation path. */
+  onAddDocuments: (files: readonly File[]) => void
+  /** Remove one draft attachment through the Conversation service. */
   onRemoveImage: (id: DraftAttachmentId) => void
   /** Display-ready limits for the drop invitation. */
   dropLimits?: { readonly count: number; readonly size: string } | undefined
@@ -261,6 +271,7 @@ export interface ComposerBarOwnerProps {
 export interface ComposerBarInjected {
   keyboard: ComposerKeyboard | undefined
   addImages: ((files: readonly File[]) => string | null) | undefined
+  addDocuments: ((files: readonly File[]) => string | null) | undefined
   removeImage: ((id: DraftAttachmentId) => void) | undefined
   draftImages: ((ids: readonly DraftAttachmentId[]) => readonly ComposerAttachment[]) | undefined
   resolveSubmitMode: (

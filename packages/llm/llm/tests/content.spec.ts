@@ -4,6 +4,7 @@ import type { AttachmentStore, ImageMediaType } from '@deepseek-ai/dsh-attachmen
 import {
   ToolCallId,
   createUserMessage,
+  expandDocumentBlocks,
   offloadedImageText,
   offloadedImagePrefixCount,
   offloadRequestImagesWithPolicy,
@@ -295,6 +296,7 @@ describe('model-facing image access', () => {
     ['image/jpeg', '.jpg'],
     ['image/webp', '.webp'],
     ['image/gif', '.gif'],
+    ['image/bmp', '.bmp'],
   ] as const)('names the writable extension for %s', (mediaType, suffix) => {
     const ref = {
       attachmentId: AttachmentId(`sha256:${'e'.repeat(64)}`),
@@ -317,6 +319,58 @@ describe('model-facing image access', () => {
     }
     expect(() => offloadedImageText(ref, { readonlyPath: '/tmp/object' }))
       .toThrow('unreachable variant in image extension: "image/tiff"')
+  })
+})
+
+describe('expandDocumentBlocks', () => {
+  function docBlock(name: string, text: string): Extract<ContentBlock, { type: 'document' }> {
+    return {
+      type: 'document',
+      attachment: {
+        attachmentId: `sha256:${'d'.repeat(64)}` as ReturnType<typeof AttachmentId>,
+        mediaType: 'text/plain',
+        bytes: 5,
+        name,
+      },
+      extractedText: text,
+    }
+  }
+
+  it('returns document-free history unchanged', () => {
+    const messages = [createUserMessage({ content: [{ type: 'text', text: 'plain' }], source })]
+    expect(expandDocumentBlocks(messages)).toBe(messages)
+  })
+
+  it('replaces a document block with a framed text block', () => {
+    const messages = [createUserMessage({ content: [docBlock('report.txt', 'hello world')], source })]
+    const expanded = expandDocumentBlocks(messages)
+    expect(expanded).not.toBe(messages)
+    expect(expanded[0]?.content).toEqual([{
+      type: 'text',
+      text: '[文档: report.txt]\nattachmentId: sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\n<document_content>\nhello world\n</document_content>',
+    }])
+  })
+
+  it('preserves text and image blocks alongside the expanded document', () => {
+    const messages = [createUserMessage({
+      content: [
+        { type: 'text', text: 'lead' },
+        docBlock('note.txt', 'content'),
+        image(3),
+      ],
+      source,
+    })]
+    const expanded = expandDocumentBlocks(messages)
+    expect(expanded[0]?.content[0]).toEqual({ type: 'text', text: 'lead' })
+    expect(expanded[0]?.content[1]).toMatchObject({ type: 'text' })
+    expect(expanded[0]?.content[2]).toEqual(image(3))
+  })
+
+  it('does not mutate durable messages', () => {
+    const original = [createUserMessage({ content: [docBlock('a.txt', 'x')], source })]
+    const expanded = expandDocumentBlocks(original)
+    expect(expanded).not.toBe(original)
+    expect(original[0]?.content[0]).toMatchObject({ type: 'document' })
   })
 })
 

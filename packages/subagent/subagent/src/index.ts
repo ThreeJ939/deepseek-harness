@@ -30,7 +30,8 @@
  */
 
 import { Context } from '@deepseek-ai/cordis'
-import { admitPromptContent } from '@deepseek-ai/dsh-attachment'
+import { admitPromptContent, admittedPartsToContentBlocks } from '@deepseek-ai/dsh-attachment'
+import { extractText } from '@deepseek-ai/dsh-attachment-document'
 import { scopeTarget } from '@deepseek-ai/dsh-scope'
 import type { Scoped } from '@deepseek-ai/dsh-scope'
 import { assertObjectJsonSchema } from '@deepseek-ai/dsh-tools'
@@ -438,15 +439,21 @@ export class SubagentRuntime extends TypertRemoteService {
       ...(canonicalTimeZone === undefined ? {} : { clientTimeZone: canonicalTimeZone }),
     }
     try {
-      // Admission precedes delivery: image parts become durable references
-      // here, so the child inbox only ever accepts Host-persisted attachments.
+      // Admission precedes delivery: image and document parts become durable
+      // references here, so the child inbox only ever accepts Host-persisted attachments.
       let content: ContentBlock[]
       if (request.content.every((part): part is { readonly type: 'text'; readonly text: string } => part.type === 'text')) {
         content = request.content.map(part => ({ type: 'text', text: part.text }))
       } else {
         const attachments = this.ctx.get('attachments')
-        if (attachments === undefined) throw new Error('subagent image prompt requires an attachment store')
-        content = await admitPromptContent(attachments, request.content)
+        if (attachments === undefined) throw new Error('subagent attachment prompt requires an attachment store')
+        const hasDocument = request.content.some(part => part.type === 'document')
+        const admitted = await admitPromptContent(
+          attachments,
+          request.content,
+          hasDocument ? { extractDocumentText: extractText } : undefined,
+        )
+        content = admittedPartsToContentBlocks(admitted)
       }
       return {
         messageId: await this[deliverSubagentPrompt](
@@ -509,7 +516,6 @@ export class SubagentRuntime extends TypertRemoteService {
    */
   registerProvider(provider: SubagentProvider): () => void {
     const name = provider.name
-    // oxlint-disable-next-line typescript/no-misused-promises -- synchronous disposer
     return this.ctx.effect(function* (this: SubagentRuntime) {
       if (this.providers.has(name)) {
         throw new SubagentError(`a subagent provider named "${name}" is already registered`, 'DUPLICATE_PROVIDER')

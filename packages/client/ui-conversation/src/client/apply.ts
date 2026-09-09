@@ -17,7 +17,7 @@ import type {
 } from './contract/slots.ts'
 import type { InputNotice } from './contract/input.ts'
 import { createConversationStore, readConversationViewPreference } from './stores.ts'
-import { ConversationController, UnsupportedImageMediaTypeError } from './service.ts'
+import { ConversationController, UnsupportedDocumentMediaTypeError, UnsupportedImageMediaTypeError } from './service.ts'
 import type { IConversation } from './service.ts'
 import { ComposerBlockRegistry } from './input/blocks.ts'
 import type { ComposerBlock } from './contract/composer-blocks.ts'
@@ -285,6 +285,7 @@ export function apply(ctx: Context): void {
         return {
           keyboard: undefined,
           addImages: undefined,
+          addDocuments: undefined,
           removeImage: undefined,
           draftImages: undefined,
           resolveSubmitMode: (running, gesture, steeringAvailable) =>
@@ -313,6 +314,18 @@ export function apply(ctx: Context): void {
             return null
           } catch (error: unknown) {
             if (error instanceof UnsupportedImageMediaTypeError) return t('image.unsupportedType')
+            return error instanceof Error ? error.message : String(error)
+          }
+        },
+        addDocuments: (files) => {
+          try {
+            const documents = conversation.createDraftDocuments(files)
+            if (!shell.addImages(documents.map(document => document.id))) {
+              conversation.releaseDraftImages(documents)
+            }
+            return null
+          } catch (error: unknown) {
+            if (error instanceof UnsupportedDocumentMediaTypeError) return t('document.unsupportedType')
             return error instanceof Error ? error.message : String(error)
           }
         },

@@ -31,10 +31,15 @@ const t = ((key: string, params?: Readonly<Record<string, unknown>>): string => 
     'image.scrollRight': '向右滚动图片',
     'image.dropBlocked': '当前无法添加图片',
     'image.dropTitle': '图片拖动到此处即可添加',
+    'document.pending': '文档',
   }
   if (key === 'image.remove') {
     const name = params?.name
     return `移除图片 ${typeof name === 'string' ? name : ''}`
+  }
+  if (key === 'document.remove') {
+    const name = params?.name
+    return `移除 ${typeof name === 'string' ? name : ''}`
   }
   if (key === 'image.dropDesc') {
     const count = params?.count
@@ -58,6 +63,7 @@ function props(overrides: Partial<ComposerAttachmentsOwnerProps> = {}): Composer
     attachments: [],
     canAcceptDrop: true,
     onAddImages: () => {},
+    onAddDocuments: () => {},
     onRemoveImage: () => {},
     t,
     ...overrides,

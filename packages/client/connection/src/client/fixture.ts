@@ -1291,7 +1291,29 @@ function projectionValuesOf(log: readonly SessionEvent[]): Record<string, unknow
     maxMessageImageBytes: 100 * 1024 * 1024,
     maxImagePixels: 40_000_000,
     maxImageDimension: 2000,
-    mediaTypes: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'],
+    mediaTypes: ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/bmp'],
+  }
+  values['documentLimits'] = {
+    maxDocumentBytes: 10 * 1024 * 1024,
+    maxDocumentsPerMessage: 5,
+    maxMessageDocumentBytes: 40 * 1024 * 1024,
+    maxExtractedCharsPerDocument: 50_000,
+    mediaTypes: [
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'application/vnd.ms-powerpoint',
+      'text/plain',
+      'application/json',
+      'text/markdown',
+      'text/csv',
+      'text/x-java-source',
+      'application/sql',
+      'application/epub+zip',
+    ],
   }
   return values
 }

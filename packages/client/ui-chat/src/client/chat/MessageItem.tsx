@@ -11,14 +11,17 @@ import { MessageIconActions } from './MessageIconActions.tsx'
 import css from './MessageItem.module.css'
 
 type UserImage = Extract<UserMessageNode['content'][number], { type: 'image' }>
+type UserDocument = Extract<UserMessageNode['content'][number], { type: 'document' }>
 
 function contentParts(content: readonly unknown[]): {
   text: string
   images: { attachment: UserImage['attachment'] }[]
+  documents: { attachment: UserDocument['attachment'] }[]
   rest: unknown[]
 } {
   const texts: string[] = []
   const images: { attachment: UserImage['attachment'] }[] = []
+  const documents: { attachment: UserDocument['attachment'] }[] = []
   const rest: unknown[] = []
   for (const block of content) {
     const b = block as { type?: string; text?: string; attachment?: unknown }
@@ -26,9 +29,22 @@ function contentParts(content: readonly unknown[]): {
     else if (b.type === 'image' && b.attachment !== undefined) {
       images.push({ attachment: (b as UserImage).attachment })
     }
+    else if (b.type === 'document' && b.attachment !== undefined) {
+      documents.push({ attachment: (b as UserDocument).attachment })
+    }
     else rest.push(block)
   }
-  return { text: texts.join(''), images, rest }
+  return { text: texts.join(''), images, documents, rest }
+}
+
+function DocumentChip({ attachment }: { attachment: UserDocument['attachment'] }): ReactNode {
+  const name = attachment.name ?? String(attachment.attachmentId).slice(0, 12) + '…'
+  return (
+    <div className={css.documentChip} title={name}>
+      <span className={css.documentChipIcon}>📄</span>
+      <span className={css.documentChipName}>{name}</span>
+    </div>
+  )
 }
 
 function retrySeconds(milliseconds: number): number {
@@ -164,7 +180,7 @@ function UserStyleBubble({
   previewImages?: readonly MessageImageSource[]
   t: ChatViewSlotProps['t']
 }): ReactNode {
-  const { text, images: contentImages, rest } = contentParts(content)
+  const { text, images: contentImages, documents, rest } = contentParts(content)
   const images = previewImages ?? contentImages
   const truncated = (total: number): string => t('json.truncated', { total })
   const showBubble = text !== '' || rest.length > 0
@@ -176,6 +192,11 @@ function UserStyleBubble({
     >
       <div className={css.userStack}>
         {renderMessageImages({ images, align: 'end' })}
+        {documents.length > 0 && (
+          <div className={css.documentChips}>
+            {documents.map((doc, i) => <DocumentChip key={i} attachment={doc.attachment} />)}
+          </div>
+        )}
         {showBubble && <div className={css.bubble}>
           {projectUserText(text, referenceLabels)}
           {rest.map((block, i) => <JsonBlock key={i} label={t('message.extraBlock')} payload={block} truncatedLabel={truncated} />)}

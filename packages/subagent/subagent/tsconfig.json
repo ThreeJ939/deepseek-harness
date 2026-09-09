@@ -18,6 +18,9 @@
       "path": "../../attachment/attachment"
     },
     {
+      "path": "../../attachment/attachment-document"
+    },
+    {
       "path": "../../core/agent"
     },
     {

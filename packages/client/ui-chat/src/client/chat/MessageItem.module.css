@@ -45,6 +45,36 @@
   font-size: var(--dsh-content-font-size-secondary, 13px);
   line-height: calc(18px + var(--dsh-content-font-delta-secondary, 0px));
 }
+
+.documentChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.documentChip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  background: var(--dsw-specific-bubble);
+  border-radius: 12px;
+  font-size: var(--dsh-content-font-size-secondary, 13px);
+  line-height: calc(18px + var(--dsh-content-font-delta-secondary, 0px));
+  color: var(--dsw-alias-label-primary);
+  max-width: 220px;
+}
+
+.documentChipIcon {
+  flex-shrink: 0;
+}
+
+.documentChipName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .contextRow {
   padding: 2px 0;
 }

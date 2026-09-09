@@ -85,4 +85,53 @@ describe('admitPromptContent', () => {
       { type: 'image', attachment: { attachmentId: 'att-2', mediaType: 'image/png', bytes: 1, width: 1, height: 1 } },
     ])
   })
+
+  it('admits document parts with extracted text when an extractor is supplied', async () => {
+    const store = {
+      saveImages: vi.fn(),
+      documentLimits: {
+        maxDocumentBytes: 1024,
+        maxDocumentsPerMessage: 4,
+        maxMessageDocumentBytes: 4096,
+        maxExtractedCharsPerDocument: 50,
+        mediaTypes: ['text/plain'],
+      },
+      saveDocuments: vi.fn((inputs: readonly { data: Uint8Array; mediaType: string; name?: string }[]) =>
+        Promise.resolve(inputs.map((input, index) => ({
+          attachmentId: `doc-${index + 1}`,
+          mediaType: input.mediaType,
+          bytes: input.data.byteLength,
+          ...input.name === undefined ? {} : { name: input.name },
+        })))),
+    }
+    const extractDocumentText = vi.fn(async () => 'extracted body')
+    await expect(admitPromptContent(store as unknown as AttachmentStore, [
+      { type: 'document', mediaType: 'text/plain', data: 'aGk=', name: 'note.txt' },
+      { type: 'text', text: 'after' },
+    ], { extractDocumentText })).resolves.toEqual([
+      {
+        type: 'document',
+        attachment: {
+          attachmentId: 'doc-1',
+          mediaType: 'text/plain',
+          bytes: 2,
+          name: 'note.txt',
+        },
+        extractedText: 'extracted body',
+      },
+      { type: 'text', text: 'after' },
+    ])
+    expect(extractDocumentText).toHaveBeenCalledOnce()
+  })
+
+  it('refuses document parts when no extractor is supplied', async () => {
+    const store = {
+      saveImages: vi.fn(),
+      saveDocuments: vi.fn(),
+    }
+    await expect(admitPromptContent(store as unknown as AttachmentStore, [
+      { type: 'document', mediaType: 'text/plain', data: 'aGk=' },
+    ])).rejects.toMatchObject({ name: 'AttachmentError', code: 'DOCUMENT_EXTRACTION_FAILED' })
+    expect(store.saveDocuments).not.toHaveBeenCalled()
+  })
 })

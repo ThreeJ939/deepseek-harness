@@ -2,7 +2,7 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-agent-presets'
-import type { ImageAttachmentLimits } from '@deepseek-ai/dsh-attachment'
+import type { DocumentAttachmentLimits, ImageAttachmentLimits } from '@deepseek-ai/dsh-attachment'
 import { SessionLogOffset } from '@deepseek-ai/dsh-session'
 import type { Session, SessionEvent, SessionHeader, SessionId } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-projection'
@@ -52,6 +52,14 @@ const imageLimitsSchema = z.object({
   maxImageDimension: z.number().int().positive(),
   mediaTypes: z.array(z.string()),
 }) as unknown as z.ZodType<ImageAttachmentLimits>
+
+const documentLimitsSchema = z.object({
+  maxDocumentBytes: z.number().int().positive(),
+  maxDocumentsPerMessage: z.number().int().positive(),
+  maxMessageDocumentBytes: z.number().int().positive(),
+  maxExtractedCharsPerDocument: z.number().int().positive(),
+  mediaTypes: z.array(z.string()),
+}) as unknown as z.ZodType<DocumentAttachmentLimits>
 
 /**
  * Advance the Session-list metadata projection by one committed event.
@@ -116,6 +124,17 @@ export class ApiSessionList {
         wire: {
           viewSchema: imageLimitsSchema,
           view: () => attachmentCtx.attachments.imageLimits,
+        },
+        stateVersion: 1,
+      })
+      ctx.sessionProjections.register<'documentLimits', null>({
+        key: 'documentLimits',
+        stateSchema: z.null(),
+        init: () => null,
+        apply: state => state,
+        wire: {
+          viewSchema: documentLimitsSchema.nullable() as unknown as z.ZodType<DocumentAttachmentLimits | null>,
+          view: () => attachmentCtx.attachments.documentLimits ?? null,
         },
         stateVersion: 1,
       })
