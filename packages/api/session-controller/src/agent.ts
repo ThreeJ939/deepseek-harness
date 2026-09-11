@@ -15,6 +15,7 @@ import { SessionQueryError, type SessionObservation } from '@deepseek-ai/dsh-ses
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import type {} from '@deepseek-ai/dsh-typert-registry'
 import type { ModelSelection } from './types.ts'
+import { getPrincipal, ownershipDenied } from './ownership.ts'
 
 /** Cold Session identity absent from persistence. */
 export class ApiSessionNotFound extends Error {}
@@ -58,7 +59,7 @@ export class ApiSessionPresetConflict extends Error {
 }
 
 /** Failures produced while resolving one ordinary Session identity to its live Agent. */
-export type ApiSessionAgentError = RemoteError<'session/not-found' | 'session/agent-busy' | 'gateway/internal'>
+export type ApiSessionAgentError = RemoteError<'session/not-found' | 'session/agent-busy' | 'session/unauthorized' | 'gateway/internal'>
 
 /** Result of resolving one ordinary Session identity to its live Agent. */
 export type ApiSessionAgentResult =
@@ -197,7 +198,10 @@ export class ApiSessionAgentController {
       this.resumes.set(sessionId, resume)
     }
     try {
-      return { agent: await resume }
+      const agent = await resume
+      const denied = ownershipDenied(this.ctx, agent.session.header.ownerUserId, sessionId)
+      if (denied !== undefined) return { error: denied }
+      return { agent }
     } catch (error: unknown) {
       if (error instanceof ApiSessionNotFound) {
         return { error: new RemoteError('session/not-found', error.message, { sessionId }) }
@@ -392,9 +396,12 @@ export class ApiSessionAgentController {
   private liveAgent(sessionId: SessionId): ApiSessionAgentResult | undefined {
     const agent = this.ctx.agents.get(sessionId)
     if (agent === undefined) return undefined
-    return hasApiSessionSubagentOwner(this.ctx, agent.session, agent)
-      ? { error: apiSessionSubagentOwnershipError(sessionId) }
-      : { agent }
+    if (hasApiSessionSubagentOwner(this.ctx, agent.session, agent)) {
+      return { error: apiSessionSubagentOwnershipError(sessionId) }
+    }
+    const denied = ownershipDenied(this.ctx, agent.session.header.ownerUserId, sessionId)
+    if (denied !== undefined) return { error: denied }
+    return { agent }
   }
 
   private async resume(sessionId: SessionId, supplied?: SessionObservation): Promise<Agent> {
@@ -476,12 +483,14 @@ export class ApiSessionAgentController {
       throw new Error(`failed to ensure project directory "${cwd}": ${String(error)}`, { cause: error })
     }
     const composition = await this.composeAgent(presetId)
+    const ownerUserId = getPrincipal(this.ctx)?.userId
     return (await this.ctx.agents.create({
       sessionId,
       agentOptions: this.agentOptions(),
       meta: {
         cwd,
         ...(composition.agentPreset === undefined ? {} : { agentPreset: composition.agentPreset }),
+        ...(ownerUserId === undefined ? {} : { ownerUserId }),
       },
       setup: composition.setup,
     })).agent

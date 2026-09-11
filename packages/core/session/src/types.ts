@@ -127,6 +127,12 @@ export interface SessionHeader {
    * would replay history the model can no longer act on.
    */
   readonly agentPreset?: string
+  /**
+   * The user identity that owns this session. Absent in single-user deployments;
+   * stamped and enforced when `dsh-host-auth-middleware` is composed. Legacy
+   * sessions without this field stay visible only when no principal is present.
+   */
+  readonly ownerUserId?: string
 }
 
 /**
@@ -155,6 +161,8 @@ export interface CreateSessionOptions {
     readonly origin?: 'subagent'
     readonly delegationDepth?: number
     readonly agentPreset?: string
+    /** Multi-tenant owner; see {@link SessionHeader.ownerUserId}. */
+    readonly ownerUserId?: string
   }
 }
 

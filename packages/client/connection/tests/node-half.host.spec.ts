@@ -278,6 +278,30 @@ describe('connection node half', () => {
     await dispose()
   })
 
+  it('serves the SPA without a process token when multi-user auth is composed', async () => {
+    const ctx = new Context()
+    const routes: WebRoute[] = []
+    provideBrowserCredentials(ctx)
+    ctx.provide('webServer', fakeHttpServer(routes, []) as WebServer)
+    const auth = { principal: undefined as { readonly userId: string } | undefined }
+    ctx.provide('authMiddleware', {
+      getCurrentPrincipal: () => auth.principal,
+    } as never)
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    const connection = ctx.get('connection') as HostConnectionHandle
+    const index = fakeResponse()
+    expect(connection.authorizeIndex(
+      fakeRequest({ host: '127.0.0.1:3080' }, '/'),
+      index.response,
+    )).toBe(true)
+    expect(index.state.status).toBeUndefined()
+    expect(connection.requestRejection(fakeRequest({ host: '127.0.0.1:3080' }))).toBe(401)
+    auth.principal = { userId: 'alice' }
+    expect(connection.requestRejection(fakeRequest({ host: '127.0.0.1:3080' }))).toBeUndefined()
+    await fiber.dispose()
+  })
+
   it('provides a disposable dedicated RPC channel', async () => {
     const ctx = new Context()
     const routes: WebRoute[] = []

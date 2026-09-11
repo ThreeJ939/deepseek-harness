@@ -23,6 +23,7 @@ function imageRef(mediaType: ImageMediaType = 'image/png', bytes = 3): ImageAtta
     'image/jpeg': 'b',
     'image/webp': 'c',
     'image/gif': 'd',
+    'image/bmp': 'e',
   } as const)[mediaType]
   return {
     attachmentId: AttachmentId(`sha256:${digit.repeat(64)}`),
@@ -365,6 +366,7 @@ describe('image serialization', () => {
     'image/jpeg',
     'image/webp',
     'image/gif',
+    'image/bmp',
   ] as const)('preserves ordered text and %s image parts', async (mediaType) => {
     const resolveFileId = fileResolver()
     const ref = imageRef(mediaType)
@@ -396,6 +398,7 @@ describe('image serialization', () => {
     ['image/jpeg', 'data:image/jpeg;base64,AAAA'],
     ['image/webp', 'data:image/webp;base64,AAAA'],
     ['image/gif', 'data:image/gif;base64,AAAA'],
+    ['image/bmp', 'data:image/bmp;base64,AAAA'],
   ] as const)('serializes every retained %s request version as an inline data URL', async (mediaType, url) => {
     const ref = imageRef(mediaType)
     const wire = await serializeRequestWithImages(request({

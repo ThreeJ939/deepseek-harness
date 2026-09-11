@@ -5,7 +5,7 @@ import type { AttachmentId, ImageVariantId } from './brand.ts'
 export type { AttachmentId } from './brand.ts'
 
 /** Raster image formats accepted by the version-one attachment path. */
-export type ImageMediaType = 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif'
+export type ImageMediaType = 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif' | 'image/bmp'
 
 /** Durable, serializable reference to one immutable normalized image. */
 export interface ImageAttachmentRef {
@@ -43,6 +43,8 @@ export interface FileAttachmentRef {
   name: string
   /** Exact byte length. */
   bytes: number
+  /** Optional browser-declared MIME type; used for document text extraction. */
+  mediaType?: string
 }
 
 /** Base64-encoded file upload accompanying one wire request. */
@@ -68,6 +70,8 @@ export interface SaveFileStreamAttachment {
   signal?: AbortSignal
   /** Optional browser/provider display name; it is never interpreted as a path. */
   name?: string
+  /** Optional browser-declared MIME type; persisted on the durable reference. */
+  mediaType?: string
 }
 
 /** Deployment-resolved limits used by upload admission and request buffering. */

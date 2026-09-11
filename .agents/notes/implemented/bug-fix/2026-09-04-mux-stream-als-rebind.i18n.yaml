@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-04-mux-stream-als-rebind.md
+2026-09-04-mux-stream-als-rebind.md: de6a3529306bd16f1da1e0c7ec506162aa0dcf92
+2026-09-04-mux-stream-als-rebind.zh.md: 457a0c32daa7a9876401a2791f98a093971d3a32

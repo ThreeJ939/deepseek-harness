@@ -273,6 +273,7 @@ describe('DeepSeekFileStore', () => {
     ['image/jpeg', 'jpeg'],
     ['image/webp', 'webp'],
     ['image/gif', 'gif'],
+    ['image/bmp', 'bmp'],
   ] as const)('uses the %s filename extension for uploads', async (mediaType, extension) => {
     const dir = await mkdtemp(join(tmpdir(), 'dsh-file-store-'))
     roots.push(dir)

@@ -24,12 +24,16 @@ export interface WorkspaceView {
   readonly createdAt: string
   /** ISO-8601 last-mutation instant. */
   readonly updatedAt: string
+  /** Multi-tenant owner when auth is composed. */
+  readonly ownerUserId?: string
 }
 
 declare module '@deepseek-ai/dsh-typert-protocol' {
   interface RemoteErrorDetailsMap {
     /** The requested directory cannot back a Workspace. */
     'workspace/invalid-path': { readonly path: string }
+    /** Authenticated caller does not own the Workspace. */
+    'workspace/unauthorized': { readonly workspaceId?: string }
     /** Another Workspace already uses the requested name. */
     'workspace/name-conflict': { readonly name: string }
     /** The Session or its anchor is not in the Workspace's manual order. */

@@ -49,6 +49,12 @@ export interface Workspace {
   readonly updatedAt: string
 
   /**
+   * Multi-tenant owner stamped at create when auth is composed. Absent in
+   * single-user deployments and for records created before ownership existed.
+   */
+  readonly ownerUserId?: string | undefined
+
+  /**
    * Header-validated sessions in manually owned order: a new session is
    * prepended at attach, explicit reordering goes through
    * `insertSessionBefore`, and activity never reorders. The durable candidate

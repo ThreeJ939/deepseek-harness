@@ -466,7 +466,7 @@ function imageAttachmentValue(value: SessionFormatJsonValue | undefined, label: 
     ['name', 'originalDimensions'],
   )
   nonEmptyString(attachment['attachmentId'], `${label} attachmentId`)
-  literalValue(attachment['mediaType'], ['image/png', 'image/jpeg', 'image/webp', 'image/gif'], `${label} mediaType`)
+  literalValue(attachment['mediaType'], ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/bmp'], `${label} mediaType`)
   countValue(attachment['bytes'], `${label} bytes`)
   positiveIntegerValue(attachment['width'], `${label} width`)
   positiveIntegerValue(attachment['height'], `${label} height`)

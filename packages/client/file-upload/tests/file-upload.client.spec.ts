@@ -438,6 +438,56 @@ describe('Session-addressed file upload', () => {
     await fiber.dispose()
   })
 
+  it('attaches the stored multi-user JWT as Authorization on the raw upload', async () => {
+    vi.stubGlobal('location', { origin: 'https://preview.test' })
+    vi.stubGlobal('sessionStorage', {
+      getItem: (key: string) => key === 'dsh.auth.jwt' ? 'test.jwt.token' : null,
+      removeItem: vi.fn(),
+    })
+    const fetch = vi.fn(() => Promise.resolve(new Response(JSON.stringify({
+      ok: true,
+      value: {
+        receiptId: 'receipt-auth',
+        file: { attachmentId: 'file-auth', name: 'a.txt', bytes: 1 },
+      },
+    }), { status: 200 })))
+    ;(globalThis as UploadGlobal).__DSH_FILE_UPLOAD__ = { fetch }
+    const { fiber, service } = await scopedService()
+
+    await expect(service.upload(SESSION_ID, new Blob(['x']), 'a.txt')).resolves.toMatchObject({ ok: true })
+    expect(fetch).toHaveBeenCalledWith(
+      expect.any(URL),
+      expect.objectContaining({
+        headers: {
+          'content-type': 'application/octet-stream',
+          authorization: 'Bearer test.jwt.token',
+        },
+      }),
+    )
+    await fiber.dispose()
+  })
+
+  it('clears the stored JWT and notifies login UI when the upload returns HTTP 401', async () => {
+    vi.stubGlobal('location', { origin: 'https://preview.test' })
+    const removeItem = vi.fn()
+    vi.stubGlobal('sessionStorage', {
+      getItem: () => 'expired.jwt',
+      removeItem,
+    })
+    const dispatchEvent = vi.fn()
+    vi.stubGlobal('dispatchEvent', dispatchEvent)
+    ;(globalThis as UploadGlobal).__DSH_FILE_UPLOAD__ = {
+      fetch: () => Promise.resolve(new Response('unauthorized', { status: 401 })),
+    }
+    const { fiber, service } = await scopedService()
+
+    await expect(service.upload(SESSION_ID, new Blob(['x']), 'a.txt'))
+      .rejects.toThrow('file upload transport failed with HTTP 401')
+    expect(removeItem).toHaveBeenCalledWith('dsh.auth.jwt')
+    expect(dispatchEvent).toHaveBeenCalledWith(expect.objectContaining({ type: 'dsh-auth-expired' }))
+    await fiber.dispose()
+  })
+
   it('uses the direct Remote fallback for exact bytes and fixture Blob bodies', async () => {
     vi.stubGlobal('location', { origin: 'https://fixture.test', search: '?fixture' })
     const remote = vi.fn(() => Promise.resolve({

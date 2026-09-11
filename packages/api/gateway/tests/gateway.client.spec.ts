@@ -2331,6 +2331,30 @@ describe('Client Typert API', () => {
 })
 
 describe('Remote stream client carrier lifecycle', () => {
+  it('attaches sessionStorage JWT as access_token on the mux WebSocket URL', async () => {
+    await withFakeWebSocket('https://harness.example', async () => {
+      const values = new Map<string, string>()
+      const storage = {
+        getItem: (key: string) => values.get(key) ?? null,
+        setItem: (key: string, value: string) => { values.set(key, value) },
+        removeItem: (key: string) => { values.delete(key) },
+      }
+      vi.stubGlobal('sessionStorage', storage)
+      storage.setItem('dsh.auth.jwt', 'fixture.jwt.token')
+      try {
+        const client = new RemoteStreamMuxClient()
+        client.start()
+        expect(FakeWebSocket.sockets).toHaveLength(1)
+        expect(FakeWebSocket.sockets[0]?.url).toBe(
+          'wss://harness.example/api/remote.mux?access_token=fixture.jwt.token',
+        )
+        await client.close()
+      } finally {
+        vi.unstubAllGlobals()
+      }
+    })
+  })
+
   it('requires the transport owner to start the physical carrier', async () => {
     const client = new RemoteStreamMuxClient()
     await expect(client.open('feed/follow', {}, new AbortController().signal)

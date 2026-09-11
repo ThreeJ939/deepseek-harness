@@ -425,6 +425,26 @@ describe('Modal', () => {
     expect(onClose).toHaveBeenCalledTimes(2)
   })
 
+  it('ignores Escape and mask click when dismissible is false', () => {
+    const onClose = vi.fn()
+    render(
+      <Modal
+        open
+        dismissible={false}
+        onClose={onClose}
+        title="Sign in"
+        closeLabel="Close"
+      >
+        body
+      </Modal>,
+    )
+    expect(screen.queryByRole('button', { name: 'Close' })).toBeNull()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    const mask = document.querySelector('[aria-hidden="true"]') as HTMLElement
+    fireEvent.click(mask)
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
   it('renders headless content without the default close chrome', () => {
     render(
       <Modal open onClose={() => {}} title="Custom surface" headless>

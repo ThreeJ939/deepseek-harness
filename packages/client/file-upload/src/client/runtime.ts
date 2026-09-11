@@ -11,6 +11,39 @@ import type {
 } from '../types.ts'
 import type { FileUploadBody, FileUploadService } from './contract.ts'
 
+/** Must match `@deepseek-ai/dsh-client-connection` auth helpers. */
+const DSH_AUTH_JWT_KEY = 'dsh.auth.jwt'
+const DSH_AUTH_EXPIRED_EVENT = 'dsh-auth-expired'
+
+/** Read the multi-user JWT from sessionStorage when present. */
+function readAuthJwt(): string | undefined {
+  try {
+    const value = globalThis.sessionStorage?.getItem(DSH_AUTH_JWT_KEY)
+    return value === null || value === undefined || value.length === 0 ? undefined : value
+  } catch {
+    // sessionStorage may throw in opaque/sandboxed origins.
+    return undefined
+  }
+}
+
+/** Clear JWT and notify login UI when the upload carrier rejects an expired token. */
+function notifyAuthExpired(): void {
+  try {
+    globalThis.sessionStorage?.removeItem(DSH_AUTH_JWT_KEY)
+  } catch {
+    // sessionStorage may throw in opaque/sandboxed origins.
+  }
+  globalThis.dispatchEvent?.(new Event(DSH_AUTH_EXPIRED_EVENT))
+}
+
+/** Headers for one raw upload, including Bearer JWT when multi-user auth is active. */
+function uploadHeaders(): Record<string, string> {
+  const headers: Record<string, string> = { 'content-type': 'application/octet-stream' }
+  const jwt = readAuthJwt()
+  if (jwt !== undefined) headers.authorization = `Bearer ${jwt}`
+  return headers
+}
+
 interface FileUploadRequest {
   readonly path: string
   readonly body: FileUploadBody
@@ -200,13 +233,18 @@ export class FileUploadRuntime extends Service implements FileUploadService {
     if (!(data instanceof Uint8Array) && this.available) {
       const query = new URLSearchParams({ sessionId })
       if (name !== undefined) query.set('name', name)
+      if (data instanceof Blob && data.type !== '') query.set('mediaType', data.type)
       const response = await this.post({
         path: `${FILE_UPLOAD_PATH}?${query.toString()}`,
         body: data,
-        headers: { 'content-type': 'application/octet-stream' },
+        headers: uploadHeaders(),
         ...(signal === undefined ? {} : { signal }),
         ...(onProgress === undefined ? {} : { onProgress }),
       })
+      if (response.status === 401) {
+        notifyAuthExpired()
+        throw new Error('file upload transport failed with HTTP 401')
+      }
       if (response.status !== 200) {
         throw new Error(`file upload transport failed with HTTP ${String(response.status)}`)
       }

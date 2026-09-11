@@ -334,4 +334,117 @@ describe('WorkspaceController follow', () => {
     roots.splice(roots.indexOf(ctx), 1)
     await expect(closing).resolves.toEqual({ done: true, value: undefined })
   })
+
+  it('scopes upsert, order, and archived increments to each follower viewer', async () => {
+    const { ctx, root } = await harness()
+    let viewer: string | undefined
+    ctx.provide('authMiddleware', {
+      getCurrentPrincipal: () => (viewer === undefined ? undefined : { userId: viewer }),
+    } as never)
+    const feed = new WorkspaceFeed(ctx)
+
+    viewer = 'alice'
+    const aliceAbort = new AbortController()
+    const alice = feed.follow(aliceAbort.signal)[Symbol.asyncIterator]()
+    await expect(nextFrame(alice)).resolves.toEqual({
+      type: 'baseline',
+      value: { items: [], archivedSessionIds: [] },
+    })
+
+    viewer = 'bob'
+    const bobAbort = new AbortController()
+    const bob = feed.follow(bobAbort.signal)[Symbol.asyncIterator]()
+    await expect(nextFrame(bob)).resolves.toEqual({
+      type: 'baseline',
+      value: { items: [], archivedSessionIds: [] },
+    })
+
+    const aliceWorkspace = await ctx.workspaceRegistry.create(
+      stageDir(root, 'alice-ws'),
+      'Alice',
+      'alice',
+    )
+    await expect(nextFrame(alice)).resolves.toMatchObject({
+      type: 'upsert',
+      workspace: { workspaceId: aliceWorkspace.id, ownerUserId: 'alice' },
+    })
+    await expect(nextFrame(alice)).resolves.toEqual({
+      type: 'order',
+      workspaceIds: [aliceWorkspace.id],
+    })
+
+    const bobPending = bob.next()
+    const bobRaced = await Promise.race([
+      bobPending.then(value => ({ kind: 'frame' as const, value })),
+      new Promise<{ kind: 'timeout' }>((resolve) => {
+        setTimeout(() => { resolve({ kind: 'timeout' }) }, 50)
+      }),
+    ])
+    expect(bobRaced.kind).toBe('timeout')
+
+    const bobWorkspace = await ctx.workspaceRegistry.create(
+      stageDir(root, 'bob-ws'),
+      'Bob',
+      'bob',
+    )
+    await expect(bobPending).resolves.toMatchObject({
+      done: false,
+      value: { type: 'upsert', workspace: { workspaceId: bobWorkspace.id, ownerUserId: 'bob' } },
+    })
+    await expect(nextFrame(bob)).resolves.toEqual({
+      type: 'order',
+      workspaceIds: [bobWorkspace.id],
+    })
+
+    const aliceQuiet = alice.next()
+    const aliceRaced = await Promise.race([
+      aliceQuiet.then(value => ({ kind: 'frame' as const, value })),
+      new Promise<{ kind: 'timeout' }>((resolve) => {
+        setTimeout(() => { resolve({ kind: 'timeout' }) }, 50)
+      }),
+    ])
+    expect(aliceRaced.kind).toBe('timeout')
+
+    const aliceSession = ctx.sessions.create(SessionId('alice-archived'), {
+      meta: { cwd: aliceWorkspace.path, ownerUserId: 'alice' },
+    })
+    await ctx.workspaceRegistry.archiveSession(aliceSession.id)
+    await expect(aliceQuiet).resolves.toEqual({
+      done: false,
+      value: { type: 'archived', archivedSessionIds: [aliceSession.id] },
+    })
+
+    const bobQuiet = bob.next()
+    const bobAfterArchive = await Promise.race([
+      bobQuiet.then(value => ({ kind: 'frame' as const, value })),
+      new Promise<{ kind: 'timeout' }>((resolve) => {
+        setTimeout(() => { resolve({ kind: 'timeout' }) }, 50)
+      }),
+    ])
+    expect(bobAfterArchive.kind).toBe('timeout')
+
+    await ctx.workspaceRegistry.delete(aliceWorkspace.id)
+    await expect(nextFrame(alice)).resolves.toEqual({
+      type: 'order',
+      workspaceIds: [],
+    })
+    await expect(nextFrame(alice)).resolves.toEqual({
+      type: 'remove',
+      workspaceId: aliceWorkspace.id,
+    })
+
+    const bobAfterDelete = await Promise.race([
+      bobQuiet.then(value => ({ kind: 'frame' as const, value })),
+      new Promise<{ kind: 'timeout' }>((resolve) => {
+        setTimeout(() => { resolve({ kind: 'timeout' }) }, 50)
+      }),
+    ])
+    expect(bobAfterDelete.kind).toBe('timeout')
+
+    aliceAbort.abort()
+    bobAbort.abort()
+    // Abort settles any parked next() without delivering a frame.
+    await expect(bobQuiet).resolves.toEqual({ done: true, value: undefined })
+    await expect(alice.next()).resolves.toEqual({ done: true, value: undefined })
+  })
 })

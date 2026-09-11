@@ -68,7 +68,7 @@ interface BenchOptions {
     maxMessageImageBytes: number
     maxImagePixels: number
     maxImageDimension: number
-    mediaTypes: readonly ('image/png' | 'image/jpeg' | 'image/webp' | 'image/gif')[]
+    mediaTypes: readonly ('image/png' | 'image/jpeg' | 'image/webp' | 'image/gif' | 'image/bmp')[]
   }
   draft?: string
   running?: boolean

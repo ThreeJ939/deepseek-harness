@@ -42,7 +42,7 @@ Set `compression: 'gzip'` to wrap eligible socket-backed responses without chang
 
 ### Registering routes
 
-`register(route)` adds a named `exact` or `prefix` HTTP route, `registerUpgrade(route)` adds an upgrade route for an exact pathname, and both return a disposer that removes the registration. A duplicate path within either table throws — route patterns are a composition-level contract, so a collision is a misconfiguration. HTTP matching is exact over the whole table, then longest prefix, then the fallback handler; upgrades match exactly and unmatched connections are closed.
+`register(route)` adds a named `exact` or `prefix` HTTP route, `registerUpgrade(route)` adds an upgrade route for an exact pathname, and both return a disposer that removes the registration. A duplicate path within either table throws — route patterns are a composition-level contract, so a collision is a misconfiguration. `registerMiddleware(middleware)` adds a global pre-route HTTP middleware (registration order; each must call `next()`); auth plugins such as [`dsh-host-auth-middleware`](../auth-middleware/README.md) use this seat. HTTP matching is exact over the whole table, then longest prefix, then the fallback handler; upgrades match exactly and unmatched connections are closed.
 
 ### The fallback seat
 
@@ -110,7 +110,7 @@ None; this package neither assembles nor sends a provider request.
 
 These limits define where the server is intentionally minimal. They are current package constraints, not a task backlog.
 
-- **No server-wide TLS, authentication, or origin policy** — route owners such as `dsh-client-connection` enforce their own request policy. Binding a non-loopback address still exposes unprotected routes and static assets to that network.
+- **No built-in TLS, auth, or origin policy** — binding a non-loopback address exposes the server to that network; JWT and similar gates register as middlewares (e.g. `dsh-host-auth-middleware`) or sit in front as a reverse proxy.
 - **Socket options are fixed** — config selects the bind host and port, while backlog and other socket settings remain internal until a deployment needs them.
 
 <a id="dev-note"></a>

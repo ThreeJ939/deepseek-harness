@@ -24,7 +24,7 @@ export interface TokenSpan {
 export type SubmitAttachment =
   | {
     readonly type: 'image'
-    readonly mediaType: 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif'
+    readonly mediaType: 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif' | 'image/bmp'
     readonly data: string
     readonly name?: string
   }

@@ -298,6 +298,7 @@ describe('model-facing image access', () => {
     ['image/jpeg', '.jpg'],
     ['image/webp', '.webp'],
     ['image/gif', '.gif'],
+    ['image/bmp', '.bmp'],
   ] as const)('names the writable extension for %s', (mediaType, suffix) => {
     const ref = {
       attachmentId: AttachmentId(`sha256:${'e'.repeat(64)}`),

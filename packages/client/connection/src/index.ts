@@ -42,6 +42,13 @@ export {
   serverResponseSchema,
 } from './rpc-schema.ts'
 export { HostConnectionService } from './rpc-host.ts'
+export { DSH_AUTH_EXPIRED_EVENT, DSH_AUTH_JWT_KEY } from './auth-storage-key.ts'
+export {
+  clearStoredAuthJwt,
+  isAuthJwtExpired,
+  notifyAuthExpired,
+  readStoredAuthJwt,
+} from './auth-storage-key.ts'
 
 export { API_PATH } from './api-path.ts'
 

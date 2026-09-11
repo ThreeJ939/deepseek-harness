@@ -38,9 +38,10 @@ function fileRef(id: string, name = 'notes.txt'): FileAttachmentRef {
 type AttachmentRef = ImageAttachmentRef | FileAttachmentRef
 
 function attachmentBlock(attachment: AttachmentRef) {
-  return 'mediaType' in attachment
-    ? { type: 'image' as const, attachment }
-    : { type: 'file' as const, attachment }
+  // 'width' in attachment discriminates ImageAttachmentRef after FileAttachmentRef gained optional mediaType.
+  return 'width' in attachment
+    ? { type: 'image' as const, attachment: attachment as ImageAttachmentRef }
+    : { type: 'file' as const, attachment: attachment as FileAttachmentRef }
 }
 
 /** A durable browser-prompt user/message whose source echoes `rpcId`. */

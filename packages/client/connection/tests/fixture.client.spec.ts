@@ -134,7 +134,7 @@ interface FixtureSessionRequests {
     readonly mode: 'queue' | 'steer'
     readonly content: readonly ({ readonly type: 'text'; readonly text: string } | {
       readonly type: 'image'
-      readonly mediaType: 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif'
+      readonly mediaType: 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif' | 'image/bmp'
       readonly data: string
       readonly name?: string
     })[]
