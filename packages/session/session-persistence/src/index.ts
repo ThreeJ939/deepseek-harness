@@ -102,8 +102,28 @@ export interface SessionPersistenceStatOptions {
 
 /** Options for {@link SessionPersistence.list}. */
 export interface SessionPersistenceListOptions {
+  /** Restrict results to sessions owned by this user id. */
+  readonly ownerUserId?: string
   /** Optional cancellation for backend listing work. */
   readonly signal?: AbortSignal
+}
+
+/**
+ * Alias of {@link SessionPersistenceListOptions} used by callers that still
+ * pass a bare AbortSignal to `list`.
+ */
+export type SessionListOptions = SessionPersistenceListOptions
+
+/**
+ * Normalize the dual list argument form used across persistence backends.
+ * @param options - AbortSignal or structured options.
+ * @returns a structured options object.
+ */
+export function normalizeSessionListOptions(
+  options?: AbortSignal | SessionPersistenceListOptions,
+): SessionPersistenceListOptions {
+  if (options instanceof AbortSignal) return { signal: options }
+  return options ?? {}
 }
 
 declare module '@deepseek-ai/cordis' {
@@ -192,7 +212,7 @@ export abstract class SessionPersistence extends Service {
 
   /**
    * List every stored session visible to this process, in no promised order.
-   * @param options - optional cancellation.
+   * @param options - optional owner filter and cancellation.
    * @returns one snapshot per stored session.
    */
   abstract list(options?: SessionPersistenceListOptions): Promise<readonly SessionPersistenceSnapshot[]>

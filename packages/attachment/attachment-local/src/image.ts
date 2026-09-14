@@ -46,6 +46,7 @@ const MEDIA_TYPES: Readonly<Record<string, ImageMediaType>> = {
   jpeg: 'image/jpeg',
   webp: 'image/webp',
   gif: 'image/gif',
+  bmp: 'image/bmp',
 }
 
 function carriesRetainedMetadata(metadata: Awaited<ReturnType<Sharp['metadata']>>): boolean {

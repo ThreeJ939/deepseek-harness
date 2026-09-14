@@ -294,7 +294,7 @@ function normalizedImageDiagnostic(
   const target = exact ?? (files.length === 1 ? files[0] : undefined)
   if (target !== undefined) {
     return `DeepSeek rejected normalized image ${normalizedImageFacts(target)}: ${providerMessage}. `
-      + 'The provider rejected bytes already normalized by the harness; PNG, JPEG, WebP, and GIF remain supported input formats.'
+      + 'The provider rejected bytes already normalized by the harness; PNG, JPEG, WebP, GIF, and BMP remain supported input formats.'
   }
   const candidates = [...new Map(files.map(file => [
     `${file.version.variantId}\0${file.location.message}\0${file.location.image}`,
@@ -302,7 +302,7 @@ function normalizedImageDiagnostic(
   ])).values()]
   return `DeepSeek rejected a normalized request image: ${providerMessage}. Candidate images: `
     + `${candidates.map(normalizedImageFacts).join('; ')}. `
-    + 'The provider rejected bytes already normalized by the harness; PNG, JPEG, WebP, and GIF remain supported input formats.'
+    + 'The provider rejected bytes already normalized by the harness; PNG, JPEG, WebP, GIF, and BMP remain supported input formats.'
 }
 
 function modelInfo(provider: string, model: DeepSeekCatalogModel): LlmModelInfo {

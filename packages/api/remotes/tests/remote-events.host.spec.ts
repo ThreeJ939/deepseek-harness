@@ -233,6 +233,143 @@ describe('Remote event Host source', () => {
     await ctx.fiber.dispose()
   })
 
+  it('tags owner-scoped session emits with targetUserId for Gateway fanout', async () => {
+    const { ctx, gateway } = await setup()
+    const abort = new AbortController()
+    const iterator = sourceOf(gateway)(abort.signal)[Symbol.asyncIterator]()
+
+    emitRaw(ctx, 'api-session/added', [{
+      sessionId: 'session-alice',
+      updatedAt: 1,
+      running: false,
+      blank: false,
+      ownerUserId: 'alice',
+    }])
+    await expect(iterator.next()).resolves.toEqual({
+      done: false,
+      value: {
+        event: 'api-session/added',
+        args: [{
+          sessionId: 'session-alice',
+          updatedAt: 1,
+          running: false,
+          blank: false,
+          ownerUserId: 'alice',
+        }],
+        targetUserId: 'alice',
+      },
+    })
+
+    emitRaw(ctx, 'api-session/activity', ['session-alice'])
+    await expect(iterator.next()).resolves.toEqual({
+      done: false,
+      value: {
+        event: 'api-session/activity',
+        args: ['session-alice'],
+        targetUserId: 'alice',
+      },
+    })
+
+    emitRaw(ctx, 'goal/activation-changed', [{
+      sessionId: 'session-alice',
+      goal: { id: 'goal-1', revision: 1, activation: 'armed' },
+    }])
+    await expect(iterator.next()).resolves.toEqual({
+      done: false,
+      value: {
+        event: 'goal/activation-changed',
+        args: [{
+          sessionId: 'session-alice',
+          goal: { id: 'goal-1', revision: 1, activation: 'armed' },
+        }],
+        targetUserId: 'alice',
+      },
+    })
+
+    emitRaw(ctx, 'api-session/removed', ['session-alice'])
+    await expect(iterator.next()).resolves.toEqual({
+      done: false,
+      value: {
+        event: 'api-session/removed',
+        args: ['session-alice'],
+        targetUserId: 'alice',
+      },
+    })
+
+    emitRaw(ctx, 'api-session/activity', ['session-alice'])
+    await expect(iterator.next()).resolves.toEqual({
+      done: false,
+      value: {
+        event: 'api-session/activity',
+        args: ['session-alice'],
+      },
+    })
+
+    emitRaw(ctx, 'goal/activation-changed', [{
+      sessionId: 'session-alice',
+      goal: { id: 'goal-1', revision: 2, activation: 'disarmed' },
+    }])
+    await expect(iterator.next()).resolves.toEqual({
+      done: false,
+      value: {
+        event: 'goal/activation-changed',
+        args: [{
+          sessionId: 'session-alice',
+          goal: { id: 'goal-1', revision: 2, activation: 'disarmed' },
+        }],
+      },
+    })
+
+    emitRaw(ctx, 'settings/document-updated', ['ui-theme', 3])
+    await expect(iterator.next()).resolves.toEqual({
+      done: false,
+      value: { event: 'settings/document-updated', args: ['ui-theme', 3] },
+    })
+
+    const done = iterator.next()
+    abort.abort()
+    await expect(done).resolves.toEqual({ done: true, value: undefined })
+    await ctx.fiber.dispose()
+  })
+
+  it('tags scoped waterfalls with the Agent session owner when known', async () => {
+    const { ctx, gateway } = await setup()
+    const abort = new AbortController()
+    const iterator = sourceOf(gateway)(abort.signal)[Symbol.asyncIterator]()
+    emitRaw(ctx, 'api-session/added', [{
+      sessionId: 'agent-1',
+      updatedAt: 1,
+      running: false,
+      blank: false,
+      ownerUserId: 'bob',
+    }])
+    await iterator.next()
+
+    const agentCtx = ctx.extend()
+    const agent = { id: 'agent-1', ctx: agentCtx }
+    const request = { questions: [], agent }
+    const pending = waterfallRaw(
+      ctx,
+      scopeTarget(ctx, agent),
+      'user-questions/request',
+      [request],
+      () => Promise.resolve('host fallback'),
+    )
+    const dispatch = invocationOf((await iterator.next()).value)
+    expect(dispatch).toMatchObject({
+      event: 'user-questions/request',
+      targetUserId: 'bob',
+      context: { agentId: 'agent-1' },
+    })
+    dispatch.resolve({ kind: 'result', value: 'ok' })
+    await expect(pending).resolves.toBe('ok')
+
+    const done = iterator.next()
+    abort.abort()
+    await expect(done).resolves.toEqual({ done: true, value: undefined })
+    await ctx.fiber.dispose()
+  })
+
   it('rejects a queued scoped waterfall when its source is withdrawn', async () => {
     const { ctx, gateway, fiber } = await setup()
     const abort = new AbortController()

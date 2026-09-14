@@ -4,10 +4,11 @@ import { randomUUID } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import type { Agent, ModelSelection as AgentModelSelection } from '@deepseek-ai/dsh-agent'
-import { AttachmentError } from '@deepseek-ai/dsh-attachment'
+import { AttachmentError, type AttachmentStore } from '@deepseek-ai/dsh-attachment'
 import type {
-  AttachmentAdmissionPart, FileAttachmentRef, ImageAttachmentRef,
+  AdmittedPromptContentPart, AttachmentAdmissionPart, FileAttachmentRef, ImageAttachmentRef,
 } from '@deepseek-ai/dsh-attachment'
+import { extractText, isDocumentMediaType } from '@deepseek-ai/dsh-attachment-document'
 import type { FileUploadReceiptId } from '@deepseek-ai/dsh-client-file-upload/types'
 import type {} from '@deepseek-ai/dsh-client-file-upload'
 import {
@@ -350,7 +351,8 @@ export class SessionCommandController {
           request.content,
           receiptId => this.ctx.fileUploads.resolve(agent, receiptId),
         )
-        const content = await this.ctx.attachments.admitPromptContent(admission.content)
+        const admitted = await this.ctx.attachments.admitPromptContent(admission.content)
+        const content = await expandDocumentFiles(this.ctx.attachments, admitted)
         const message: UserMessage = createUserMessage({ content, source })
         if (this.ctx.agents.get(agent.id) !== agent) {
           throw new RemoteError(
@@ -580,6 +582,37 @@ function resolvePromptFileReceipts(
     return { type: 'file', attachment }
   })
   return { content: resolved, receiptIds: [...receiptIds] }
+}
+
+/**
+ * Replace document-typed file parts with extracted plain text for the model.
+ * Non-document files remain durable file references.
+ * @param attachments - mounted attachment store used to read stored bytes.
+ * @param content - admitted prompt parts after image admission.
+ * @returns prompt parts with documents expanded to text blocks.
+ */
+async function expandDocumentFiles(
+  attachments: AttachmentStore,
+  content: readonly AdmittedPromptContentPart[],
+): Promise<AdmittedPromptContentPart[]> {
+  const next: AdmittedPromptContentPart[] = []
+  for (const part of content) {
+    if (part.type !== 'file' || !isDocumentMediaType(part.attachment.mediaType)) {
+      next.push(part)
+      continue
+    }
+    const chunks: Uint8Array[] = []
+    for await (const chunk of attachments.readFileStream(part.attachment)) {
+      chunks.push(chunk)
+    }
+    const data = Buffer.concat(chunks)
+    const text = await extractText(data, part.attachment.mediaType)
+    next.push({
+      type: 'text',
+      text: `[Document: ${part.attachment.name}]\n${text}`,
+    })
+  }
+  return next
 }
 
 function hasPromptRequest(agent: Agent, requestId: SessionRequestId): boolean {

@@ -5,7 +5,7 @@ import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { errorChain } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-client-file-upload'
-import { canOpenNativePath, nativeFileManager, openNativePath, revealNativePath } from '@deepseek-ai/dsh-native-command'
+import { canOpenNativePath, nativeFileManager, openNativePath } from '@deepseek-ai/dsh-native-command'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import type { SessionInspection } from '@deepseek-ai/dsh-session-persistence'
 import type { SessionObservation } from '@deepseek-ai/dsh-session-query'
@@ -31,6 +31,7 @@ import type {
   SessionCancelRequest,
   SessionCancelValue,
   SessionControlFrame,
+  SessionControlRequest,
   SessionCreateRequest,
   SessionCreateValue,
   SessionFollowFrame,
@@ -77,8 +78,6 @@ export interface Config {
 export interface SessionControllerInternals {
   /** Native default-application handoff. */
   readonly openPath?: (path: string, signal: AbortSignal) => Promise<void>
-  /** Native file-manager handoff. */
-  readonly revealPath?: (path: string, signal: AbortSignal) => Promise<void>
   /** Native handoff availability probe. */
   readonly canOpenPath?: () => boolean
 }
@@ -108,7 +107,6 @@ export class SessionController extends TypertRemoteService {
   private readonly history: SessionHistoryController
   private readonly listState: ApiSessionList
   private readonly openPath: (path: string, signal: AbortSignal) => Promise<void>
-  private readonly revealPath: (path: string, signal: AbortSignal) => Promise<void>
   private readonly canOpenPath: () => boolean
   private readonly promotions = new Set<Promise<void>>()
 
@@ -136,7 +134,6 @@ export class SessionController extends TypertRemoteService {
     this.history = new SessionHistoryController(ctx, (observation) => { this.promote(observation) })
     this.listState = new ApiSessionList(ctx)
     this.openPath = internals.openPath ?? openNativePath
-    this.revealPath = internals.revealPath ?? revealNativePath
     this.canOpenPath = internals.canOpenPath
       ?? (() => config.nativeOpen ?? (internals.openPath !== undefined || canOpenNativePath()))
     ctx.plugin(SessionFileReferences)
@@ -304,8 +301,7 @@ export class SessionController extends TypertRemoteService {
     }
     signal.throwIfAborted()
     try {
-      if (request.action === 'reveal') await this.revealPath(request.path, signal)
-      else await this.openPath(request.path, signal)
+      await this.openPath(request.path, signal)
       return { opened: true }
     } catch (error: unknown) {
       if (signal.aborted) throw new RemoteError('gateway/cancelled', 'path open was aborted', {})
@@ -404,12 +400,13 @@ export class SessionController extends TypertRemoteService {
 
   /**
    * Stream a complete live-control baseline followed by replacement frames.
+   * @param request - opening request carrying optional viewer identity for multi-user filtering.
    * @param signal - cancellation owned by the Remote stream carrier.
    * @returns one complete baseline followed by live replacement frames.
    */
   @Remote({ mode: 'stream' })
-  control(signal: AbortSignal): AsyncIterable<SessionControlFrame> {
-    return this.controlState.control(signal)
+  control(request: SessionControlRequest, signal: AbortSignal): AsyncIterable<SessionControlFrame> {
+    return this.controlState.control(signal, request.viewerUserId)
   }
 
 }

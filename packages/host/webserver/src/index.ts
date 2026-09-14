@@ -55,6 +55,16 @@ export interface WebUpgradeRoute {
   handler: (req: IncomingMessage, socket: Duplex, head: Buffer) => void | Promise<void>
 }
 
+/**
+ * A global HTTP middleware that runs before route matching. Call `next()` to
+ * continue; return without it to own the response and end the chain.
+ */
+export type WebMiddleware = (
+  req: IncomingMessage,
+  res: ServerResponse,
+  next: () => Promise<void>,
+) => Promise<void>
+
 /** Web server listen and response-compression config. */
 export interface Config {
   /** Listen host; the two supported values are loopback and all-interfaces. */
@@ -135,6 +145,7 @@ export class WebServer extends Service {
   private readonly upgrades = new Map<string, WebUpgradeRoute>()
   private readonly upgradedSockets = new Set<Duplex>()
   private readonly indexTaps: ((html: string) => string)[] = []
+  private readonly middlewares: WebMiddleware[] = []
   private fallback: WebRoute['handler'] | undefined
   private server!: Server
   private listenedPort!: number
@@ -186,6 +197,20 @@ export class WebServer extends Service {
   }
 
   /**
+   * Register a global HTTP middleware that runs before route matching. Middlewares
+   * run in registration order; each must call `next()` to continue.
+   * @param middleware - the middleware function.
+   * @returns the disposer removing the middleware.
+   */
+  registerMiddleware(middleware: WebMiddleware): () => void {
+    this.middlewares.push(middleware)
+    return () => {
+      const idx = this.middlewares.indexOf(middleware)
+      if (idx !== -1) this.middlewares.splice(idx, 1)
+    }
+  }
+
+  /**
    * Claim the fallback seat: the handler answering every request no named
    * route matches (the SPA dist server in the shipped Web composition). One
    * owner only — a second registration throws, because two fallbacks cannot
@@ -219,21 +244,30 @@ export class WebServer extends Service {
   /** Listen; resolves once the socket is bound (rejection = FAILED fiber). */
   async [Service.init](): Promise<void> {
     const handle = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
-      /* v8 ignore next -- `?? '/'` arm: node:http always sets url on server
-      requests; the field is only optional on the client-side IncomingMessage type */
-      const rawPath = new URL(req.url ?? '/', 'http://x').pathname
-      const route = this.match(rawPath)
-      if (route !== undefined) {
-        await route.handler(req, res)
-        return
+      let middlewareIndex = 0
+      const dispatch = async (): Promise<void> => {
+        if (middlewareIndex < this.middlewares.length) {
+          const mw = this.middlewares[middlewareIndex++] as WebMiddleware
+          await mw(req, res, dispatch)
+          return
+        }
+        /* v8 ignore next -- `?? '/'` arm: node:http always sets url on server
+        requests; the field is only optional on the client-side IncomingMessage type */
+        const rawPath = new URL(req.url ?? '/', 'http://x').pathname
+        const route = this.match(rawPath)
+        if (route !== undefined) {
+          await route.handler(req, res)
+          return
+        }
+        const fallback = this.fallback
+        if (fallback === undefined) {
+          res.writeHead(404)
+          res.end()
+          return
+        }
+        await fallback(req, res)
       }
-      const fallback = this.fallback
-      if (fallback === undefined) {
-        res.writeHead(404)
-        res.end()
-        return
-      }
-      await fallback(req, res)
+      await dispatch()
     }
     // Last-resort guard: handle() rejecting would otherwise be an unhandled
     // rejection killing the process on one malformed request (bad %-escape,

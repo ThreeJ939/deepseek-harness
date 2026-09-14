@@ -565,7 +565,7 @@ export class ConversationController extends Service implements IConversation {
         continue
       }
       this.draftAttachments.delete(attachment.id)
-      if (ref !== undefined && 'mediaType' in ref
+      if (ref !== undefined && 'width' in ref
         && uiConversation?.seedImageUrl(sessionId, ref, attachment.previewUrl) === true) continue
       revokePreview(attachment.previewUrl)
     }
@@ -587,6 +587,7 @@ function imageMediaType(value: string): ImageMediaType {
     case 'image/jpeg':
     case 'image/webp':
     case 'image/gif':
+    case 'image/bmp':
       return value
     default:
       throw new UnsupportedImageMediaTypeError(value)
@@ -595,7 +596,11 @@ function imageMediaType(value: string): ImageMediaType {
 
 /** Whether a browser-declared MIME selects the image draft path (all other files upload verbatim). */
 function isImageMediaType(value: string): boolean {
-  return value === 'image/png' || value === 'image/jpeg' || value === 'image/webp' || value === 'image/gif'
+  return value === 'image/png'
+    || value === 'image/jpeg'
+    || value === 'image/webp'
+    || value === 'image/gif'
+    || value === 'image/bmp'
 }
 
 function revokePreview(url: string): void {

@@ -6,7 +6,9 @@
     "tsBuildInfoFile": "lib/tsconfig.host.tsbuildinfo"
   },
   "files": [
+    "src/bind-async-iterable-to-principal.ts",
     "src/index.ts",
+    "src/inject-control-viewer-user-id.ts",
     "src/remote-error-codes.ts",
     "src/stream-protocol.ts",
     "src/stream-server.ts",
@@ -24,6 +26,9 @@
     },
     {
       "path": "../../client/connection/tsconfig.host.json"
+    },
+    {
+      "path": "../../host/auth-middleware"
     },
     {
       "path": "../../host/webserver"

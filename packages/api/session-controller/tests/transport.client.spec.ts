@@ -129,7 +129,7 @@ class ScriptedSessionRemote implements SessionTransportRemote {
     return Promise.resolve(result)
   }
 
-  async *control(signal = new AbortController().signal): AsyncIterable<SessionControlFrame> {
+  async *control(_request: unknown, signal = new AbortController().signal): AsyncIterable<SessionControlFrame> {
     for (const frame of this.controlFrames) yield frame
     if (this.holdControl && !signal.aborted) {
       await new Promise<void>((resolve) => {

@@ -70,6 +70,11 @@ export interface Config {
   watch?: boolean
   /** Watcher write-settle window in milliseconds; defaults to 100. */
   debounceMs?: number
+  /**
+   * When true, the deployment credentials document is read-only: set/unset
+   * reject. Used by same-process multi-tenant deployments that share one API key.
+   */
+  readOnly?: boolean
 }
 
 /** Fully resolved provider parameters; defaulting happens here, never inline. */
@@ -519,6 +524,7 @@ export class LocalCredentialProvider extends CredentialProvider {
     dshHome: z.string(),
     watch: z.boolean().default(true),
     debounceMs: z.number().min(0).default(100),
+    readOnly: z.boolean().default(false),
   })
 
   private readonly spec: ResolvedSpec
@@ -625,6 +631,7 @@ export class LocalCredentialProvider extends CredentialProvider {
   }
 
   override describe(ref: CredentialRef): Promise<CredentialInfo> {
+    const deploymentReadOnly = this.config.readOnly === true
     // Only the inherited environment is unwritable: it is the one layer this
     // process cannot edit. A user `.env` value is writable in the sense that
     // matters — storing a key replaces it as the effective one.
@@ -632,13 +639,20 @@ export class LocalCredentialProvider extends CredentialProvider {
       return Promise.resolve({ configured: true, source: 'env', writable: false })
     }
     const stored = this.values.get(ref)
-    if (stored !== undefined) return Promise.resolve({ configured: true, source: 'file', writable: true })
+    if (stored !== undefined) {
+      return Promise.resolve({ configured: true, source: 'file', writable: !deploymentReadOnly })
+    }
     const fallback = this.dotenvFallback(ref)
-    if (fallback !== undefined) return Promise.resolve({ configured: true, source: fallback.source, writable: true })
-    return Promise.resolve({ configured: false, writable: true })
+    if (fallback !== undefined) {
+      return Promise.resolve({ configured: true, source: fallback.source, writable: !deploymentReadOnly })
+    }
+    return Promise.resolve({ configured: false, writable: !deploymentReadOnly })
   }
 
   override async set(ref: CredentialRef, value: string): Promise<void> {
+    if (this.config.readOnly === true) {
+      throw new Error('credentials-local: credential writes are disabled (readOnly deployment policy)')
+    }
     if (value.length === 0) {
       throw new Error(`credentials-local: an empty value cannot be stored for "${ref}"; use unset`)
     }
@@ -646,6 +660,9 @@ export class LocalCredentialProvider extends CredentialProvider {
   }
 
   override async unset(ref: CredentialRef): Promise<void> {
+    if (this.config.readOnly === true) {
+      throw new Error('credentials-local: credential writes are disabled (readOnly deployment policy)')
+    }
     await this.write(ref, undefined)
   }
 

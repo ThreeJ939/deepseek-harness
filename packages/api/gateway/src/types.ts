@@ -24,6 +24,12 @@ export interface TypertRemoteEventFrame {
   readonly event: string
   /** Original event argument list after the owner validates it for JSON transport. */
   readonly args: readonly unknown[]
+  /**
+   * When set, the Gateway delivers this frame only to connections whose userId
+   * matches. Connections with no userId (unauthenticated deployment) always
+   * receive the frame regardless of this field.
+   */
+  readonly targetUserId?: string
 }
 
 /** Live Host values used to project one scoped Remote Event. */
@@ -52,6 +58,12 @@ export interface TypertRemoteEventInvocation {
   /** Sole request argument before the waterfall's `next()` callback. */
   readonly request: object
   readonly context: TypertRemoteEventContext
+  /**
+   * When set, the Gateway delivers this invocation only to connections whose
+   * userId matches. Connections with no userId (unauthenticated deployment)
+   * always receive the invocation regardless of this field.
+   */
+  readonly targetUserId?: string
   /** Resume the source's Cordis listener with a Client result or `next()`. */
   readonly resolve: (outcome: TypertRemoteEventOutcome) => void
   /** Reject the source's Cordis listener after cancellation, transport failure, or Client rejection. */

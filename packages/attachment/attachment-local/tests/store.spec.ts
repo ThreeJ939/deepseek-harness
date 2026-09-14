@@ -53,7 +53,7 @@ const LIMITS: ImageAttachmentLimits = {
   maxMessageImageBytes: 2048,
   maxImagePixels: 16,
   maxImageDimension: 2000,
-  mediaTypes: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'],
+  mediaTypes: ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/bmp'],
 }
 
 const roots: string[] = []

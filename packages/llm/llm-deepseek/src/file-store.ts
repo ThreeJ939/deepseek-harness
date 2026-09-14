@@ -92,12 +92,13 @@ function waitForUpload(operation: SharedUpload, signal: AbortSignal | undefined)
   })
 }
 
-function extension(mediaType: RequestImageAttachment['mediaType']): 'png' | 'jpeg' | 'webp' | 'gif' {
+function extension(mediaType: RequestImageAttachment['mediaType']): 'png' | 'jpeg' | 'webp' | 'gif' | 'bmp' {
   switch (mediaType) {
     case 'image/png': return 'png'
     case 'image/jpeg': return 'jpeg'
     case 'image/webp': return 'webp'
     case 'image/gif': return 'gif'
+    case 'image/bmp': return 'bmp'
   }
 }
 

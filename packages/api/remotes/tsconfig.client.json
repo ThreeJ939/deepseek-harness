@@ -42,6 +42,9 @@
       "path": "../../feedback/message-feedback"
     },
     {
+      "path": "../../feedback/command-feedback"
+    },
+    {
       "path": "../../host/plugin-inventory"
     },
     {
@@ -79,9 +82,6 @@
     },
     {
       "path": "../../typert/protocol"
-    },
-    {
-      "path": "../../feedback/command-feedback"
     }
   ]
 }

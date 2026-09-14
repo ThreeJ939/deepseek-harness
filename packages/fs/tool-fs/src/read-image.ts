@@ -28,6 +28,7 @@ const IMAGE_EXTENSIONS: Readonly<Record<string, ImageMediaType>> = {
   '.jpeg': 'image/jpeg',
   '.webp': 'image/webp',
   '.gif': 'image/gif',
+  '.bmp': 'image/bmp',
 }
 
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a] as const
@@ -56,6 +57,7 @@ export function sniffImageMediaType(data: Uint8Array): ImageMediaType | undefine
   if (matchesBytes(data, 0, JPEG_SIGNATURE)) return 'image/jpeg'
   if (matchesAscii(data, 0, 'GIF87a') || matchesAscii(data, 0, 'GIF89a')) return 'image/gif'
   if (matchesAscii(data, 0, 'RIFF') && matchesAscii(data, 8, 'WEBP')) return 'image/webp'
+  if (matchesAscii(data, 0, 'BM')) return 'image/bmp'
   return undefined
 }
 
@@ -65,7 +67,7 @@ const IMAGE_VALUE_SCHEMA = {
   required: true,
   properties: {
     attachmentId: { type: 'string', required: true },
-    mediaType: { type: 'string', enum: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'], required: true },
+    mediaType: { type: 'string', enum: ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/bmp'], required: true },
     bytes: { type: 'integer', required: true },
     width: { type: 'integer', required: true },
     height: { type: 'integer', required: true },

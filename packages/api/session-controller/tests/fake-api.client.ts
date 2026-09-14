@@ -28,7 +28,8 @@ import {
   type RemoteStreamOptions,
 } from '@deepseek-ai/dsh-api-gateway/client'
 import type { SessionRemotes } from '../src/client/sessions/remotes.ts'
-import { followSnapshot, pageThrough } from './remote/history.client.ts'
+import { SESSION_FORMAT_VERSION } from '@deepseek-ai/dsh-session/types'
+import { historyRecordLastSeq } from '../src/client/sessions/history-records.ts'
 
 const AVAILABLE_STREAM_CONNECTION = {
   generation: {
@@ -238,7 +239,7 @@ export class FakeApiClient {
         ),
         page: request => this.page(request),
         follow: (request, signal) => this.openFollow(request, signal),
-        control: signal => this.openControl(signal),
+        control: (_request, signal) => this.openControl(signal),
       },
       subagents: {
         list: parentSessionId => this.record(
@@ -362,7 +363,11 @@ export class FakeApiClient {
     if (!result.ok) return result
     return {
       ok: true,
-      value: pageThrough(result.value, request.throughSeq),
+      value: {
+        ...result.value,
+        records: result.value.records
+          .filter(record => historyRecordLastSeq(record) <= request.throughSeq),
+      },
     }
   }
 
@@ -383,7 +388,27 @@ export class FakeApiClient {
       })
       if (!response.ok) throw response.error
       const page = response.value
-      yield followSnapshot(page, request, this.followCursor, this.assistantStreamBaseline)
+      const tail = page.records.at(-1)
+      const cursor = this.followCursor ?? (tail === undefined ? -1 : historyRecordLastSeq(tail))
+      yield {
+        type: 'snapshot',
+        header: {
+          version: SESSION_FORMAT_VERSION,
+          id: sessionId,
+          createdAt: 0,
+          isSeeded: false,
+          ...(request.address.kind === 'subagent'
+            ? { origin: 'subagent' as const, parentSession: request.address.parentSessionId }
+            : {}),
+        },
+        cursor,
+        records: page.records.filter(record => historyRecordLastSeq(record) <= cursor),
+        hasMore: page.hasMore,
+        projections: page.projections ?? { asOfSeq: cursor, values: {} },
+        ...request.assistantStream === true
+          ? { assistantStream: this.assistantStreamBaseline }
+          : {},
+      }
       yield* stream.values
     } finally {
       stream.dispose()

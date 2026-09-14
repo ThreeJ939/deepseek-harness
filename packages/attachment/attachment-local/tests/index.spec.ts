@@ -32,7 +32,7 @@ describe('local attachment service', () => {
       maxMessageImageBytes: DEFAULT_MAX_MESSAGE_IMAGE_BYTES,
       maxImagePixels: DEFAULT_MAX_IMAGE_PIXELS,
       maxImageDimension: DEFAULT_MAX_IMAGE_DIMENSION,
-      mediaTypes: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'],
+      mediaTypes: ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/bmp'],
     })
     expect(service.normalizationPolicy).toEqual({
       maxPixels: DEFAULT_NORMALIZED_IMAGE_MAX_PIXELS,

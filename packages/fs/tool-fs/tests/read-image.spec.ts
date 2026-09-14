@@ -164,6 +164,7 @@ describe('imageMediaTypeForPath', () => {
     expect(imageMediaTypeForPath('b.jpeg')).toBe('image/jpeg')
     expect(imageMediaTypeForPath('c.webp')).toBe('image/webp')
     expect(imageMediaTypeForPath('d.Gif')).toBe('image/gif')
+    expect(imageMediaTypeForPath('e.bmp')).toBe('image/bmp')
     expect(imageMediaTypeForPath('note.txt')).toBeUndefined()
     expect(imageMediaTypeForPath('png')).toBeUndefined()
   })
@@ -180,6 +181,7 @@ describe('sniffImageMediaType', () => {
     expect(sniffImageMediaType(ascii('GIF87a...'))).toBe('image/gif')
     expect(sniffImageMediaType(ascii('GIF89a...'))).toBe('image/gif')
     expect(sniffImageMediaType(ascii('RIFF\0\0\0\0WEBPVP8 '))).toBe('image/webp')
+    expect(sniffImageMediaType(ascii('BM\0\0'))).toBe('image/bmp')
   })
 
   it('returns undefined for other bytes, incomplete signatures, and non-WebP RIFF containers', () => {

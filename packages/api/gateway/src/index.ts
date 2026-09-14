@@ -8,6 +8,9 @@
 import { randomUUID } from 'node:crypto'
 import { Context, Service, symbols } from '@deepseek-ai/cordis'
 import type { ConnectionRpcHandler } from '@deepseek-ai/dsh-client-connection'
+import type { AuthenticatedPrincipal } from '@deepseek-ai/dsh-host-auth-middleware'
+import { bindAsyncIterableToPrincipal } from './bind-async-iterable-to-principal.ts'
+import { injectControlViewerUserId } from './inject-control-viewer-user-id.ts'
 import { Deque } from '@deepseek-ai/dsh-deque'
 import type { WebUpgradeRoute } from '@deepseek-ai/dsh-host-webserver'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
@@ -36,6 +39,7 @@ import type {
 import {
   RemoteStreamMuxServer,
   rejectRemoteStreamUpgrade,
+  type ConnectionMeta,
 } from './stream-server.ts'
 import {
   REMOTE_EVENT_STREAM_ENDPOINT,
@@ -99,6 +103,7 @@ interface RemoteEventClient {
   readonly id: RemoteEventClientId
   readonly queue: RemoteEventQueue
   readonly deliveries: Map<RemoteEventId, PendingRemoteEvent>
+  readonly userId: string | undefined
 }
 
 interface PendingRemoteEvent {
@@ -114,6 +119,7 @@ type ConnectionRpcResult = Awaited<ReturnType<ConnectionRpcHandler>>
 type ConnectionRpcError = Extract<ConnectionRpcResult, { readonly ok: false }>['error']
 const NEVER_ABORTED_SIGNAL = new AbortController().signal
 const DEFAULT_WEBSOCKET_HEARTBEAT_INTERVAL_MS = 2_000
+const SESSION_CONTROL_STREAM_ENDPOINT = 'session/control'
 
 /** Gateway transport configuration. */
 export interface Config {
@@ -175,7 +181,7 @@ export class TypertGatewayService extends Service implements TypertGateway {
 
   /** Carrier adapter shared by the WebSocket mux and local Host transports. */
   readonly wireStream: TypertGatewayWireStream = {
-    open: (endpoint, payload, signal) => this.openWireStream(endpoint, payload, signal),
+    open: (endpoint, payload, signal) => this.openWireStream(endpoint, payload, signal, {}),
     failure: error => rpcError(error),
   }
 
@@ -204,14 +210,28 @@ export class TypertGatewayService extends Service implements TypertGateway {
     })
     ctx.inject(['connection', 'webServer'], (webCtx) => {
       const mux = new RemoteStreamMuxServer(
-        (endpoint, payload, signal) => this.openWireStream(endpoint, payload, signal),
+        (endpoint, payload, signal, meta) => this.openWireStream(endpoint, payload, signal, meta),
         this.wireStream.failure,
         resolved.websocketHeartbeatIntervalMs,
       )
       webCtx.effect(() => {
         const route: WebUpgradeRoute = {
           path: REMOTE_STREAM_MUX_PATH,
-          handler: (req, socket, head) => {
+          handler: async (req, socket, head) => {
+            const auth = webCtx.get('authMiddleware')
+            if (auth !== undefined) {
+              const result = await auth.authenticateRequest(req)
+              if (!result.ok) {
+                rejectRemoteStreamUpgrade(socket, 401)
+                return
+              }
+              // Capture userId on the connection; openWireStream re-enters ALS
+              // on each logical-stream pull so handlers can read the principal.
+              auth.runWithPrincipal(result.principal, () => {
+                mux.handleUpgrade(req, socket, head, { userId: result.principal.userId })
+              })
+              return
+            }
             const rejection = webCtx.connection.requestRejection(req)
             if (rejection !== undefined) {
               rejectRemoteStreamUpgrade(socket, rejection)
@@ -374,16 +394,27 @@ export class TypertGatewayService extends Service implements TypertGateway {
     endpoint: string,
     payload: unknown,
     signal: AbortSignal,
+    meta: ConnectionMeta,
   ): Promise<AsyncIterable<unknown>> {
     if (endpoint === REMOTE_EVENT_STREAM_ENDPOINT) {
-      return this.openRemoteEvents(payload, signal)
+      return this.openRemoteEvents(payload, signal, meta)
     }
-    return this.stream(remoteRequest(endpoint, payload, signal))
+    const wirePayload = endpoint === SESSION_CONTROL_STREAM_ENDPOINT && meta.userId !== undefined
+      ? injectControlViewerUserId(payload, meta.userId)
+      : payload
+    const source = await this.stream(remoteRequest(endpoint, wirePayload, signal))
+    const auth = this.ctx.get('authMiddleware')
+    if (auth === undefined || meta.userId === undefined) return source
+    const principal: AuthenticatedPrincipal = {
+      userId: meta.userId as AuthenticatedPrincipal['userId'],
+    }
+    return bindAsyncIterableToPrincipal(auth, principal, source)
   }
 
   private async *openRemoteEvents(
     payload: unknown,
     signal: AbortSignal,
+    meta: ConnectionMeta,
   ): AsyncGenerator<
     RemoteEventEmitFrame | RemoteEventInvocationFrame | RemoteEventCancellationFrame
     | RemoteEventReadyFrame
@@ -416,9 +447,14 @@ export class TypertGatewayService extends Service implements TypertGateway {
       id: clientId,
       queue: new RemoteEventQueue(),
       deliveries: new Map(),
+      userId: meta.userId,
     }
     this.remoteEventClients.set(clientId, client)
-    for (const pending of this.pendingRemoteEvents.values()) this.deliverRemoteEvent(pending, client)
+    for (const pending of this.pendingRemoteEvents.values()) {
+      const ownerFilter = pending.source.targetUserId
+      if (ownerFilter !== undefined && client.userId !== undefined && client.userId !== ownerFilter) continue
+      this.deliverRemoteEvent(pending, client)
+    }
     try {
       yield { ...REMOTE_EVENT_STREAM_READY, clientId, host: registration.host }
       yield* client.queue.iterate(lifetime)
@@ -451,7 +487,14 @@ export class TypertGatewayService extends Service implements TypertGateway {
       event: frame.event,
       args: frame.args,
     }
-    for (const client of this.remoteEventClients.values()) client.queue.push(wire)
+    for (const client of this.remoteEventClients.values()) {
+      // When the event targets a specific user, skip clients whose userId does
+      // not match. Clients with no userId belong to unauthenticated deployments
+      // and receive every broadcast.
+      if (frame.targetUserId !== undefined && client.userId !== undefined
+        && client.userId !== frame.targetUserId) continue
+      client.queue.push(wire)
+    }
   }
 
   private startRemoteEvent(source: TypertRemoteEventInvocation): void {
@@ -507,7 +550,13 @@ export class TypertGatewayService extends Service implements TypertGateway {
       this.pendingRemoteEvents.set(id, pending)
       for (const signal of signals) signal.addEventListener('abort', abort, { once: true })
       if ([...signals].some(signal => signal.aborted)) abort()
-      else for (const client of this.remoteEventClients.values()) this.deliverRemoteEvent(pending, client)
+      else {
+        const ownerFilter = source.targetUserId
+        for (const client of this.remoteEventClients.values()) {
+          if (ownerFilter !== undefined && client.userId !== undefined && client.userId !== ownerFilter) continue
+          this.deliverRemoteEvent(pending, client)
+        }
+      }
     } catch (error) {
       source.reject(error)
     }

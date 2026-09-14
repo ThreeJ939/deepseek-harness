@@ -57,6 +57,7 @@ function extension(mediaType: ImageMediaType): string {
     case 'image/jpeg': return '.jpg'
     case 'image/webp': return '.webp'
     case 'image/gif': return '.gif'
+    case 'image/bmp': return '.bmp'
     default: return assertNever(mediaType, 'image extension')
   }
 }

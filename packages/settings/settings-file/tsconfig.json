@@ -25,6 +25,9 @@
     },
     {
       "path": "../settings"
+    },
+    {
+      "path": "../../host/auth-middleware"
     }
   ]
 }

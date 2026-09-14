@@ -125,6 +125,7 @@ export async function saveFileStreamVerbatim(
     attachmentId: AttachmentId(`sha256:${stored.sha256}`),
     name,
     bytes: stored.bytes,
+    ...(input.mediaType !== undefined && input.mediaType !== '' ? { mediaType: input.mediaType } : {}),
   }
   input.signal?.throwIfAborted()
   await publishImmutableAlias(

@@ -5,12 +5,15 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type {
   TypertRemoteEventDispatch,
+  TypertRemoteEventFrame,
   TypertRemoteEventInvocation,
   TypertRemoteEventOutcome,
   TypertRemoteEventSource,
 } from '@deepseek-ai/dsh-api-gateway'
 import { Deque } from '@deepseek-ai/dsh-deque'
 import { carrierKeyOf } from '@deepseek-ai/dsh-scope'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type {} from '@deepseek-ai/dsh-session'
 import { isJsonValue, type JsonValue } from '@deepseek-ai/dsh-util-values'
 import { API_REMOTE_FORWARDED_EVENTS } from './remote-events.ts'
 
@@ -47,10 +50,39 @@ export function apply(ctx: Context): void {
 function remoteEventSource(ctx: Context): TypertRemoteEventSource {
   return (signal) => {
     const queue = new RemoteEventQueue()
+    /**
+     * Tracks sessionId → ownerUserId for sessions added during this source's
+     * lifetime. Used so that 'removed' and activity events can carry the owner
+     * even after the session leaves the live registry.
+     */
+    const sessionOwners = new Map<string, string>()
     const disposers = API_REMOTE_FORWARDED_EVENTS.map(({ event, mode }) => {
       if (mode === 'emit') {
         return ctx.on(event as never, ((...args: unknown[]) => {
-          queue.push({ event, args: assertJsonArgs(event, args) })
+          const jsonArgs = assertJsonArgs(event, args)
+          // Populate the map before extracting the target so that 'added'
+          // events are tagged correctly from the very first emit.
+          if (event === 'api-session/added') {
+            const summary = jsonArgs[0]
+            if (typeof summary === 'object' && summary !== null && !Array.isArray(summary)) {
+              const rec = summary as Record<string, JsonValue>
+              const sid = rec.sessionId
+              const uid = rec.ownerUserId
+              if (typeof sid === 'string' && typeof uid === 'string') sessionOwners.set(sid, uid)
+            }
+          }
+          const targetUserId = extractTargetUserId(event, jsonArgs, sessionOwners, ctx)
+          // Remove the tracking entry only after the target is determined so
+          // the 'removed' event itself is still tagged.
+          if (event === 'api-session/removed' && typeof jsonArgs[0] === 'string') {
+            sessionOwners.delete(jsonArgs[0])
+          }
+          const frame = {
+            event,
+            args: jsonArgs as readonly unknown[],
+            ...(targetUserId !== undefined ? { targetUserId } : {}),
+          } as TypertRemoteEventFrame
+          queue.push(frame)
         }) as never)
       }
       return ctx.on(event as never, (function (
@@ -64,12 +96,15 @@ function remoteEventSource(ctx: Context): TypertRemoteEventSource {
         if (agent === undefined || agent !== carrierAgent) {
           throw new TypeError(`forwarded scoped event ${JSON.stringify(event)} must carry its Agent directly`)
         }
+        const targetUserId = sessionOwners.get(agent.id)
+          ?? ctx.get('sessions')?.get(agent.id)?.header.ownerUserId
         return forwardWaterfall(
           queue,
           event,
           request,
           { value: agent.ctx, subject: agent, agentId: agent.id },
           next,
+          targetUserId,
         )
       }) as never)
     })
@@ -137,9 +172,10 @@ function forwardWaterfall(
   request: object,
   context: TypertRemoteEventInvocation['context'],
   next: () => unknown,
+  targetUserId?: string,
 ): Promise<unknown> {
   const settled = Promise.withResolvers<unknown>()
-  const dispatch: TypertRemoteEventInvocation = {
+  const base: Omit<TypertRemoteEventInvocation, 'targetUserId'> = {
     event,
     request,
     context,
@@ -152,6 +188,9 @@ function forwardWaterfall(
     },
     reject: settled.reject,
   }
+  const dispatch = (targetUserId !== undefined
+    ? { ...base, targetUserId }
+    : base) as TypertRemoteEventInvocation
   if (!queue.push(dispatch)) void Promise.resolve().then(next).then(settled.resolve, settled.reject)
   return settled.promise
 }
@@ -164,4 +203,57 @@ function assertJsonArgs(event: string, args: readonly unknown[]): JsonValue[] {
     }
   }
   return args as JsonValue[]
+}
+
+/**
+ * Extract a per-user delivery target from the event args when the event is
+ * owner-scoped. Returns undefined for events broadcast to all clients.
+ * @param event - Cordis event name.
+ * @param args - validated JSON args for the event.
+ * @param sessionOwners - live map of sessionId → ownerUserId for sessions seen
+ *   during this source's lifetime; consulted before the live registry.
+ * @param ctx - Host Context used to fall back to the live session registry for
+ *   sessions that predate this source's startup.
+ * @returns the ownerUserId string, or undefined.
+ */
+function extractTargetUserId(
+  event: string,
+  args: readonly JsonValue[],
+  sessionOwners: ReadonlyMap<string, string>,
+  ctx: Context,
+): string | undefined {
+  switch (event) {
+    case 'api-session/added': {
+      // ownerUserId is carried directly in the SessionSummary payload.
+      const summary = args[0]
+      if (typeof summary !== 'object' || summary === null || Array.isArray(summary)) return undefined
+      const userId = (summary as Record<string, JsonValue>).ownerUserId
+      return typeof userId === 'string' ? userId : undefined
+    }
+    case 'api-session/removed':
+    case 'api-session/status':
+    case 'api-session/activity':
+    case 'api-session/error':
+    case 'agent-preset/selected': {
+      // args[0] is the SessionId string for all of these events.
+      const sessionId = args[0]
+      if (typeof sessionId !== 'string') return undefined
+      // Prefer the local map (which captures the removed session before cleanup)
+      // and fall back to the live registry for sessions that existed before
+      // this source started.
+      return sessionOwners.get(sessionId)
+        ?? ctx.get('sessions')?.get(sessionId as unknown as SessionId)?.header.ownerUserId
+    }
+    case 'goal/activation-changed': {
+      // args[0] is GoalActivationChanged; ownership follows the named session.
+      const payload = args[0]
+      if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) return undefined
+      const sessionId = (payload as Record<string, JsonValue>).sessionId
+      if (typeof sessionId !== 'string') return undefined
+      return sessionOwners.get(sessionId)
+        ?? ctx.get('sessions')?.get(sessionId as unknown as SessionId)?.header.ownerUserId
+    }
+    default:
+      return undefined
+  }
 }
