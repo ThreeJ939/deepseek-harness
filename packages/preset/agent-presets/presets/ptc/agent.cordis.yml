@@ -273,3 +273,6 @@
 
 - id: present
   name: '@deepseek-ai/dsh-tool-present'
+
+- id: archive-deliverable
+  name: '@deepseek-ai/dsh-tool-deliverable-archive'

@@ -1,5 +1,5 @@
 ---
-description: "从上传文档中抽取纯文本，供模型提示词注入。"
+description: "从上传文档中抽取纯文本，供 LLM 请求投影。"
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-从已准入的文档附件（PDF、DOCX 与常见文本格式）抽取纯文本，供 Host 提示词准入把截断后的文档内容注入用户消息。本包是会话与子代理提示词路径使用的库，不注册 Cordis 服务。
+从文档附件（PDF、DOCX 与常见文本格式）抽取纯文本，供 LLM 请求投影为模型框定截断后的文档内容。本包是 `dsh-llm` 请求组装使用的库，不注册 Cordis 服务。
 
 ## 目录
 
@@ -23,7 +23,7 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
-在文档字节校验通过后调用 `extractText(data, mediaType, maxChars?)`。当提示词可能包含文档部分时，将其作为 `extractDocumentText` 传给 `admitPromptContent`。
+在文档字节可用后调用 `extractText(data, mediaType, maxChars?)`。`dsh-llm` 在为一次 provider 请求投影持久 file 块时调用它。
 
 <a id="understand-the-implementation"></a>
 ## 理解实现
@@ -43,11 +43,11 @@ kind: "package-reference"
 
 #### What the model sees
 
-抽取的纯文本由 Host 装入用户消息中的文本内容块。对象键与存储路径不会进入提示词。
+抽取的纯文本由请求投影装入发给模型的文本内容块。持久会话日志保留结构化文件引用；对象键与存储路径不会进入框定文档正文。
 
 #### Token effect
 
-与截断后的抽取长度成正比；一份文档可在包含它的首轮及后续重放该用户消息的轮次中，最多贡献配置字符预算对应的文本 token。
+与截断后的抽取长度成正比；一份文档可在每次展开它的 provider 请求中，最多贡献配置字符预算对应的文本 token。
 
 #### KV Cache effect
 

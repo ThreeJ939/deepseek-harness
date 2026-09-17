@@ -4,12 +4,14 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   Button,
-  FishLogo,
   IconLoadingOutline16,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { Config } from '../config.ts'
 import type { AuthKey } from './locales.ts'
 import css from './LoginPage.module.css'
+
+/** Public static product mark served by the web app. */
+const ZHISHU_ICON_SRC = '/zhishu-icon.svg'
 
 /** Storage key for the in-progress OAuth state verifier. */
 const OAUTH_STATE_KEY = 'dsh.auth.oauth.state'
@@ -136,7 +138,15 @@ export function LoginPage({ config, t, onSuccess }: LoginPageProps) {
   return (
     <div className={css.shell}>
       <div className={css.hero}>
-        <FishLogo size={40} className={css.logo} />
+        <img
+          src={ZHISHU_ICON_SRC}
+          width={40}
+          height={40}
+          className={css.logo}
+          alt=""
+          aria-hidden="true"
+          draggable={false}
+        />
       </div>
       <h2 className={css.title}>{t('modal.title')}</h2>
       <p className={css.description}>{t('modal.description')}</p>

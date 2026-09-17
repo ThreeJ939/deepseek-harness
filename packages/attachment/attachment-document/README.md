@@ -1,5 +1,5 @@
 ---
-description: "Extract plain text from uploaded documents for model prompt injection."
+description: "Extract plain text from uploaded documents for LLM request projection."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Extracts plain text from admitted document attachments (PDF, DOCX, and common text formats) so Host prompt admission can inject truncated document content into the user message. It is a library used by session and subagent prompt paths; it does not register a Cordis service.
+Extracts plain text from document attachments (PDF, DOCX, and common text formats) so LLM request projection can frame truncated document content for the model. It is a library used by `dsh-llm` request assembly; it does not register a Cordis service.
 
 ## Table of Contents
 
@@ -23,7 +23,7 @@ Extracts plain text from admitted document attachments (PDF, DOCX, and common te
 <a id="use-this-package"></a>
 ## Use this package
 
-Call `extractText(data, mediaType, maxChars?)` after document bytes are validated. Pass the function as `extractDocumentText` to `admitPromptContent` when the prompt may contain document parts.
+Call `extractText(data, mediaType, maxChars?)` after document bytes are available. `dsh-llm` invokes it while projecting durable file blocks for one provider request.
 
 <a id="understand-the-implementation"></a>
 ## Understand the implementation
@@ -43,11 +43,11 @@ Extraction truncates to a character budget (default 50_000) before returning.
 
 #### What the model sees
 
-Extracted plain text framed by the Host into a text content block inside the user message. Object keys and storage paths never enter the prompt.
+Extracted plain text framed by request projection into a text content block sent to the model. The durable session log keeps the structured file reference; object keys and storage paths never enter the framed document body.
 
 #### Token effect
 
-Proportional to truncated extracted length; one document can add up to the configured character budget of text tokens on the first turn that includes it, and again on later turns that replay that user message.
+Proportional to truncated extracted length; one document can add up to the configured character budget of text tokens on each provider request that expands it.
 
 #### KV Cache effect
 

@@ -8,7 +8,7 @@
 
 ## 存储模型
 
-Schema 2 使用三张表：`persistence_state`（存储身份与 schema 版本）、`sessions`（不可变头字段、revision、所有权标记）、`events`（以 `session_id, seq` 为键的物理行，`data` 为 JSONB）。追加在显式事务中完成：拒绝非连续的首个逻辑 seq，插入本批，revision 加一。正常追加从不删除或改写更早的行。
+Schema 2 使用三张表：`persistence_state`（存储身份与 schema 版本）、`sessions`（不可变头字段、revision、所有权标记）、`events`（以 `session_id, seq` 为键的物理行，`data` 为 JSONB）。TEXT 列 `surface_op` 存储 JSON（`"append"` 或 replace 对象），与 SQLite 一致；读取端仍接受遗留的裸 `append` 字面量。追加在显式事务中完成：拒绝非连续的首个逻辑 seq，插入本批，revision 加一。正常追加从不删除或改写更早的行。
 
 与 SQLite 提供者相同，连续同块、长度 ≥ 3 的 `assistant/chunk` delta 跑会打包成一条物理行（`text-chunks` / `reasoning-chunks` / `tool-call-chunks`，并以 `ignorable = FALSE` 标记）。恢复时将 pack 行展开为原始逻辑事件；物理编码不会进入提示、工具、回放或 live `session/event`。
 

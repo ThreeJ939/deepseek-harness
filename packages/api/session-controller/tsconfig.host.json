@@ -31,7 +31,6 @@
     { "path": "../../core/session" },
     { "path": "../../context/file-reference" },
     { "path": "../../attachment/attachment" },
-    { "path": "../../attachment/attachment-document" },
     { "path": "../../client/file-upload/tsconfig.host.json" },
     { "path": "../../client/connection/tsconfig.host.json" },
     { "path": "../../interaction/permission-presets" },

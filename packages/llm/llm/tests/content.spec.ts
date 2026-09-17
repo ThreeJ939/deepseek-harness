@@ -5,7 +5,9 @@ import {
   ToolCallId,
   contentHasFile,
   createUserMessage,
+  documentFrameText,
   fileHandleText,
+  projectFilesForRequest,
   projectFilesToText,
   offloadedImageText,
   offloadedImagePrefixCount,
@@ -468,5 +470,35 @@ describe('file projection', () => {
     })
     // The durable message is untouched: projection returns shallow copies.
     expect(messages[1]!.content[0]!.type).toBe('file')
+  })
+
+  it('expands documents via projectFilesForRequest and keeps non-documents as handles', async () => {
+    const document = {
+      type: 'file' as const,
+      attachment: {
+        attachmentId: AttachmentId(`sha256:${'cd'.repeat(32)}`),
+        name: 'notes.txt',
+        bytes: 5,
+        mediaType: 'text/plain',
+      },
+    }
+    const binary = fileBlock('data.bin')
+    const messages = [createUserMessage({
+      content: [document, binary, { type: 'text', text: 'ask' }],
+      source,
+    })]
+    const projected = await projectFilesForRequest(
+      messages,
+      ref => `/copies/${ref.name}`,
+      async ref => ref.mediaType === 'text/plain'
+        ? documentFrameText(ref, 'body')
+        : undefined,
+    )
+    expect(projected[0]!.content).toEqual([
+      { type: 'text', text: '[Document: notes.txt]\nbody' },
+      { type: 'text', text: fileHandleText(binary.attachment, '/copies/data.bin') },
+      { type: 'text', text: 'ask' },
+    ])
+    expect(messages[0]!.content[0]?.type).toBe('file')
   })
 })

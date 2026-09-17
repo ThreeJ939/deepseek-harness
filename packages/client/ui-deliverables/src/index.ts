@@ -1,13 +1,15 @@
 /**
  * Deliverables plugin, node half. Registers the response-format guidance that
  * lets the browser half recognize final-response file references and serves
- * authenticated native opens of declared files. The browser
- * half ships via exports["./client"], discovered through the package.json
+ * authenticated native opens of declared files plus archived attachment downloads.
+ * The browser half ships via exports["./client"], discovered through the package.json
  * dsh.client declaration.
  */
 
 import type { Context } from '@deepseek-ai/cordis'
+import type {} from '@deepseek-ai/dsh-attachment'
 import type {} from '@deepseek-ai/dsh-system-prompt'
+import { registerDeliverableDownload } from './download.ts'
 import { registerPresentOpen } from './present-open.ts'
 
 /** Services required for file-reference guidance and authenticated native opens of declared files. */
@@ -23,6 +25,10 @@ const FILE_REFERENCE_PROMPT = 'When you successfully create or modify files, men
  */
 export function apply(ctx: Context): void {
   registerPresentOpen(ctx)
+  // Archive downloads need the attachment store; keep present opens available without it.
+  ctx.inject(['attachments'], (scope) => {
+    registerDeliverableDownload(scope)
+  })
   ctx.systemPrompt.section({
     name: 'ui:deliverable-file-references',
     order: ctx.systemPrompt.getSectionOrder('DELIVERABLE_FILE_REFERENCES'),

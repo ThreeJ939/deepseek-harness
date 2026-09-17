@@ -65,6 +65,7 @@ async function uploadHarness(origin?: 'subagent'): Promise<{
       attachmentId: AttachmentId(`sha256:${'ef'.repeat(32)}`),
       name: input.name ?? 'file',
       bytes,
+      ...(input.mediaType === undefined ? {} : { mediaType: input.mediaType }),
     }
   })
   const saveImages = vi.fn((): Promise<readonly ImageAttachmentRef[]> =>
@@ -192,6 +193,33 @@ describe('Session file uploads', () => {
     expect((followup.mock.calls[0]?.[0] as UserMessage).content).toEqual([
       { type: 'file', attachment: receipt.file },
     ])
+  })
+
+  it('keeps document media types as durable file blocks in the admitted user message', async () => {
+    const { controller, uploads, followup, saveFileStream } = await uploadHarness()
+    const receipt = await uploads.uploadStream({
+      sessionId: SESSION,
+      data: (async function* (): AsyncIterable<Uint8Array> {
+        yield new TextEncoder().encode('hello document')
+      })(),
+      name: 'notes.txt',
+      mediaType: 'text/plain',
+    })
+    expect(saveFileStream).toHaveBeenCalledWith(expect.objectContaining({
+      name: 'notes.txt',
+      mediaType: 'text/plain',
+    }))
+    expect(receipt.file).toMatchObject({ name: 'notes.txt', mediaType: 'text/plain', bytes: 14 })
+    await controller.prompt(promptRequest([
+      { type: 'file', receiptId: receipt.receiptId },
+      { type: 'text', text: 'summarize' },
+    ]))
+    const message = followup.mock.calls[0]?.[0] as UserMessage
+    expect(message.content).toEqual([
+      { type: 'file', attachment: receipt.file },
+      { type: 'text', text: 'summarize' },
+    ])
+    expect(message.content.some(block => block.type === 'text' && block.text.startsWith('[Document:'))).toBe(false)
   })
 
   it('keeps the stream name optional and maps storage failures through the same error vocabulary', async () => {

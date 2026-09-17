@@ -30,7 +30,7 @@ export const en = {
   'collapse': 'Collapse',
   'expand': 'Expand',
   'back': 'Back',
-  'brand.localBuild': 'DSH Local Build',
+  'brand.localBuild': '智枢2.0',
   'unknown': 'Unknown',
   'none': 'None',
   'truncated': 'Truncated',

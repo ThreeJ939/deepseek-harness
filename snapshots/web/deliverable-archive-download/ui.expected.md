@@ -1,0 +1,44 @@
+- text: Write presented-only.txt and archived-report.txt, call present for both, then archive_deliverable only for archived-report.txt. Finish with ARCHIVE_DOWNLOAD_DONE. {{clock}}
+- button "Copy":
+  - img
+- button "2 tool calls" [expanded]:
+  - text: 2 tool calls
+  - img
+- button "Present files Delivered presented-only.txt, archived-report.txt":
+  - img
+  - text: Present files Delivered presented-only.txt, archived-report.txt
+- 'button "Tool call archive_deliverable · {\"files\":[{\"path\":\"archived-report.txt\",\"description\":\"durable download copy\"}]}"':
+  - img
+  - img
+  - text: "Tool call archive_deliverable · {\"files\":[{\"path\":\"archived-report.txt\",\"description\":\"durable download copy\"}]}"
+- paragraph:
+  - text: Presented both files and archived
+  - code:
+    - button "Open archived-report.txt in sidebar": archived-report.txt
+  - text: .
+- paragraph: ARCHIVE_DOWNLOAD_DONE
+- button "Preview presented-only.txt in sidebar"
+- text: presented-only.txt live workspace copy
+- button "Open presented-only.txt in sidebar": Open
+- button "More file actions for presented-only.txt":
+  - img
+- button "Preview archived-report.txt in sidebar"
+- text: archived-report.txt will also be archived
+- button "Open archived-report.txt in sidebar": Open
+- button "More file actions for archived-report.txt":
+  - img
+- text: archived-report.txt
+- status: Download started
+- button "Download archived-report.txt": Download
+- button "Copy":
+  - img
+- button "Good response":
+  - img
+- button "Bad response":
+  - img
+- button "Branch into a new conversation":
+  - img
+- button "Ran for {{duration}}":
+  - img
+  - text: Ran for {{duration}}
+- text: {{clock}}

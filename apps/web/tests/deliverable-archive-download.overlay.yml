@@ -1,0 +1,4 @@
+# Keyless Web e2e does not mount multi-user login providers; disable the gate
+# so the authored archive session can render without a JWT modal.
+- id: ui-auth
+  disabled: true

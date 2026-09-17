@@ -23,6 +23,7 @@ import {
   decodeEventRow,
   decodeSessionRow,
   decodeStoreIdentity,
+  encodeSurfaceOp,
   eventRowToEvent,
   rowToMeta,
   type SessionRow,
@@ -201,7 +202,7 @@ export class PgStore {
       if (first.seq !== expected) {
         throw new Error(`session ${meta.id} append starts at seq ${first.seq}, stored next seq is ${expected}`)
       }
-      for (const event of events as Array<SessionEvent & { sourceEventSeqs?: unknown; surfaceOp?: string; ignorable?: boolean }>) {
+      for (const event of events as Array<SessionEvent & { sourceEventSeqs?: unknown; surfaceOp?: unknown; ignorable?: boolean }>) {
         await client.query(
           `INSERT INTO events (session_id, seq, type, time, data, source_event_seqs, surface_op, ignorable)
            VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7, $8)`,
@@ -212,7 +213,7 @@ export class PgStore {
             event.time,
             JSON.stringify(event.data),
             event.sourceEventSeqs === undefined ? null : JSON.stringify(event.sourceEventSeqs),
-            event.surfaceOp ?? null,
+            encodeSurfaceOp(event.surfaceOp),
             event.ignorable === true ? true : null,
           ],
         )

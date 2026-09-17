@@ -1,13 +1,13 @@
 {
   "id": "/",
-  "name": "DeepSeek Harness",
-  "short_name": "DSH",
+  "name": "智枢2.0",
+  "short_name": "智枢",
   "start_url": "/",
   "scope": "/",
   "display": "fullscreen",
   "icons": [
     {
-      "src": "/favicon.svg",
+      "src": "/zhishu-icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"

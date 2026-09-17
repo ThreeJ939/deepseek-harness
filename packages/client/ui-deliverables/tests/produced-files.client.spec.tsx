@@ -22,18 +22,20 @@ import { apply as applyLocale, inject as localeInject } from '@deepseek-ai/dsh-c
 import type { ChatFileMentions, TurnTailOwnerProps } from '@deepseek-ai/dsh-client-ui-chat/client'
 import { makeTranslate, stubSettingsScope } from '@deepseek-ai/dsh-client-test-runtime'
 import { Deliverables, selectDeliverables, type DeliverablesInjected } from '../src/client/Deliverables.tsx'
+import { ArchivedDownloadController } from '../src/client/archive-download.ts'
 import { PresentedOpenController } from '../src/client/present-open.ts'
 import { ProducedFiles } from '../src/client/ProducedFiles.tsx'
 import {
-  basename, deliverablesDefinition, presentedForClosing, producedFileMentions, producedForClosing, selectProducedFiles,
+  archivedForClosing, basename, deliverablesDefinition, presentedForClosing, producedFileMentions, producedForClosing, selectProducedFiles,
   type DeliverablesTurnData,
 } from '../src/client/turn-deliverables.ts'
 import { apply, inject } from '../src/client/index.ts'
 import { en, zh } from '../src/client/locales.ts'
+import { AttachmentId } from '@deepseek-ai/dsh-attachment'
 import { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { SessionEvent } from '@deepseek-ai/dsh-session/types'
 
-function openProps(controller = new PresentedOpenController()) {
+function openProps(controller = new PresentedOpenController(), downloads = new ArchivedDownloadController()) {
   controller.host.set({ name: 'desktop', available: true, fileManager: 'finder' })
   const sessions: SessionListState = { ids: [], byId: {}, current: undefined, phase: 'ready', subagentsByParent: {}, jobsBySession: {}, currentAddress: undefined }
   return {
@@ -44,6 +46,9 @@ function openProps(controller = new PresentedOpenController()) {
     openPresented: vi.fn((...args: Parameters<PresentedOpenController['open']>) => controller.open(...args)),
     usePresentedOpen: <T,>(select: (state: ReturnType<typeof controller.state.getSnapshot>) => T): T =>
       select(controller.state.getSnapshot()),
+    downloadArchived: vi.fn((...args: Parameters<ArchivedDownloadController['download']>) => downloads.download(...args)),
+    useArchivedDownload: <T,>(select: (state: ReturnType<typeof downloads.state.getSnapshot>) => T): T =>
+      select(downloads.state.getSnapshot()),
   }
 }
 
@@ -666,7 +671,7 @@ it('shows descriptions and falls back to file metadata without hiding extensionl
   const view = render(<Deliverables {...openProps()} matched={{ produced: [], presented: [
     { path: 'out/report.txt', description: 'Quarterly summary', seq: 2, index: 0 },
     { path: 'LICENSE', seq: 2, index: 1 },
-  ] }} openFile={() => {}} sessionId={SessionId('session')} t={makeTranslate(en)} />)
+  ], archived: [] }} openFile={() => {}} sessionId={SessionId('session')} t={makeTranslate(en)} />)
   expect(view.getByText('Quarterly summary')).toBeTruthy()
   expect(view.getByText('File')).toBeTruthy()
   expect(view.getByTitle('out/report.txt')).toBeTruthy()
@@ -676,7 +681,7 @@ it('shows descriptions and falls back to file metadata without hiding extensionl
 it('marks delivery cards that directly follow the produced-files row', () => {
   const shared = { ...openProps(), openFile: () => {}, sessionId: SessionId('session'), t: makeTranslate(en) }
   const presented = [{ path: 'report.txt', seq: 2, index: 0 }]
-  const view = render(<Deliverables {...shared} matched={{ produced: ['source.ts'], presented }} />)
+  const view = render(<Deliverables {...shared} matched={{ produced: ['source.ts'], presented, archived: [] }} />)
   expect(view.getByText('Files changed')).toBeTruthy()
   expect(view.container.querySelector('[data-presented-files-row]')?.parentElement
     ?.getAttribute('data-after-produced-files')).toBe('true')
@@ -686,6 +691,7 @@ it('distinguishes PDF, Word, Markdown, and code files with compact decorative ca
   const paths = ['report.pdf', 'report.docx', 'README.md', 'index.tsx']
   const view = render(<Deliverables {...openProps()} matched={{ produced: [], presented:
     paths.map((path, index) => ({ path, seq: 2, index })),
+  archived: [],
   }} openFile={() => {}} sessionId={SessionId('session')} t={makeTranslate(en)} />)
   const icons = [...view.container.querySelectorAll('[data-presented-file]')].map((card) => {
     const icon = card.querySelector('svg')!
@@ -699,7 +705,7 @@ it('distinguishes PDF, Word, Markdown, and code files with compact decorative ca
 it('lets one delivered file span the complete row without an expansion control', () => {
   const view = render(<Deliverables {...openProps()} matched={{ produced: [], presented: [
     { path: 'report.pdf', seq: 2, index: 0 },
-  ] }} openFile={() => {}} sessionId={SessionId('session')} t={makeTranslate(en)} />)
+  ], archived: [] }} openFile={() => {}} sessionId={SessionId('session')} t={makeTranslate(en)} />)
   expect(view.container.querySelector('[data-presented-files-row]')?.getAttribute('data-single')).toBe('true')
   expect(view.queryByRole('button', { name: /delivered files/ })).toBeNull()
 })
@@ -711,7 +717,7 @@ it.each(['opening', 'opened', 'error'] as const)('shows the %s state and permits
   const props = openProps(controller)
   const view = render(<Deliverables {...props} matched={{ produced: [], presented: [
     { path: 'report.txt', seq: 2, index: 0 },
-  ] }} openFile={() => {}} sessionId={SessionId('session')} t={makeTranslate(en)} />)
+  ], archived: [] }} openFile={() => {}} sessionId={SessionId('session')} t={makeTranslate(en)} />)
   expect(view.getByText(en[`presented.${phase}`])).toBeTruthy()
   expect((view.getByRole('button', { name: 'More file actions for report.txt' }) as HTMLButtonElement).disabled).toBe(phase === 'opening')
 })
@@ -720,7 +726,7 @@ it.each(['opening', 'opened', 'error'] as const)('shows the %s state and permits
 it('explains a missing desktop and retries failed Host metadata', () => {
   const controller = new PresentedOpenController()
   const props = openProps(controller)
-  const matched = { produced: [], presented: [{ path: 'file.txt', seq: 2, index: 0 }] }
+  const matched = { produced: [], presented: [{ path: 'file.txt', seq: 2, index: 0 }], archived: [] }
   controller.host.set('error')
   const view = render(<Deliverables {...props} matched={matched} openFile={() => {}} sessionId={SessionId('session')} t={makeTranslate(en)} />)
   props.reloadPresentedHost.mockResolvedValue(undefined)
@@ -738,8 +744,55 @@ it('loads desktop information only when delivery cards appear', () => {
   controller.host.set(null)
   props.reloadPresentedHost.mockResolvedValue(undefined)
   const shared = { ...props, openFile: () => {}, sessionId: SessionId('session'), t: makeTranslate(en) }
-  const view = render(<Deliverables {...shared} matched={{ produced: ['source.ts'], presented: [] }} />)
+  const view = render(<Deliverables {...shared} matched={{ produced: ['source.ts'], presented: [], archived: [] }} />)
   expect(props.reloadPresentedHost).not.toHaveBeenCalled()
-  view.rerender(<Deliverables {...shared} matched={{ produced: [], presented: [{ path: 'report.txt', seq: 2, index: 0 }] }} />)
+  view.rerender(<Deliverables {...shared} matched={{ produced: [], presented: [{ path: 'report.txt', seq: 2, index: 0 }], archived: [] }} />)
   expect(props.reloadPresentedHost).toHaveBeenCalledOnce()
+})
+
+describe('archived files', () => {
+  const attachment = {
+    attachmentId: AttachmentId(`sha256:${'b'.repeat(64)}`),
+    name: 'report.pdf',
+    bytes: 32,
+  }
+
+  it('replays archives without mutation calls and isolates turns', () => {
+    const value = assembler([
+      at(1, 'turn/start', { turn: 1 }),
+      at(2, 'deliverables/archived', {
+        turn: 1, callId: 'archive',
+        files: [{ path: 'report.pdf', description: 'PDF', attachment }],
+      }),
+      at(3, 'turn/end', { turn: 1 }),
+      at(4, 'turn/start', { turn: 2 }),
+    ])
+    expect(archivedForClosing(tailOwner(deliverablesOf(value), 3)))
+      .toMatchObject([{ path: 'report.pdf', seq: 2, index: 0, description: 'PDF', attachment }])
+    expect(selectDeliverables(tailOwner(deliverablesOf(value, 2), 9))).toBeNull()
+  })
+
+  it('renders a download button for archived files', () => {
+    const props = openProps()
+    const view = render(<Deliverables {...props} matched={{
+      produced: [], presented: [],
+      archived: [{ path: 'report.pdf', seq: 2, index: 0, attachment }],
+    }} openFile={() => {}} sessionId={SessionId('session')} t={makeTranslate(en)} />)
+    fireEvent.click(view.getByRole('button', { name: 'Download report.pdf' }))
+    expect(props.downloadArchived).toHaveBeenCalledWith(SessionId('session'), 2, 0, 'report.pdf')
+  })
+
+  it('puts open and download on one card when present and archive share a path', () => {
+    const props = openProps()
+    const view = render(<Deliverables {...props} matched={{
+      produced: [],
+      presented: [{ path: 'report.pdf', description: 'Report', seq: 1, index: 0 }],
+      archived: [{ path: 'report.pdf', description: 'Report', seq: 2, index: 0, attachment }],
+    }} openFile={() => {}} sessionId={SessionId('session')} t={makeTranslate(en)} />)
+    expect(view.container.querySelectorAll('[data-presented-file][data-has-download]')).toHaveLength(1)
+    expect(view.container.querySelector('[data-archived-files-row]')).toBeNull()
+    expect(view.getByRole('button', { name: 'Open report.pdf in sidebar' })).toBeTruthy()
+    fireEvent.click(view.getByRole('button', { name: 'Download report.pdf' }))
+    expect(props.downloadArchived).toHaveBeenCalledWith(SessionId('session'), 2, 0, 'report.pdf')
+  })
 })

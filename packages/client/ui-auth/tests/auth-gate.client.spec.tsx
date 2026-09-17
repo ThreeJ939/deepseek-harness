@@ -36,6 +36,9 @@ describe('AuthGate', () => {
     const dialog = screen.getByRole('dialog', { name: en['modal.title'] })
     expect(dialog).toBeDefined()
     expect(screen.getByText(en['modal.description'])).toBeDefined()
+    const mark = dialog.querySelector('img')
+    expect(mark?.getAttribute('src')).toBe('/zhishu-icon.svg')
+    expect(mark?.getAttribute('width')).toBe('40')
     expect(screen.queryByRole('button', { name: 'Close' })).toBeNull()
     expect(root.inert).toBe(true)
 

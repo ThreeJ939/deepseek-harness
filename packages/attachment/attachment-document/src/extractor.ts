@@ -1,5 +1,5 @@
 /**
- * Plain-text extraction for admitted document attachments.
+ * Plain-text extraction for document attachments.
  * @module @deepseek-ai/dsh-attachment-document/extractor
  */
 
@@ -119,13 +119,13 @@ async function extractDocx(data: Uint8Array): Promise<string> {
 }
 
 /**
- * Extract model-visible plain text from one admitted document.
+ * Extract model-visible plain text from one document.
  * Unsupported binary formats that cannot be parsed raise
  * {@link AttachmentError} with `DOCUMENT_EXTRACTION_FAILED`.
  * @param data - complete document bytes.
  * @param mediaType - declared document media type.
  * @param maxChars - maximum retained Unicode code points (default 50_000).
- * @returns truncated plain text suitable for prompt injection.
+ * @returns truncated plain text for request-time framing.
  */
 export async function extractText(
   data: Uint8Array,

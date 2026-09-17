@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-使用 `present` 声明交付Session 文件系统可访问的最终文件，包括通过 shell 命令创建的文件。用户使用默认应用打开当前源文件。工具记录路径和可选说明，不复制文件内容。
+使用 `present` 声明交付Session 文件系统可访问的最终文件，包括通过 shell 命令创建的文件。用户使用默认应用打开当前源文件。工具记录路径和可选说明，不复制文件内容。当挂载了默认开启 `autoArchiveAfterPresent` 的 `dsh-tool-deliverable-archive` 时，成功的 present 也会为这些文件做 Web 下载归档。
 
 ## 目录
 

@@ -8,7 +8,7 @@ Every session shares one PostgreSQL database. Callers address a stored session t
 
 ## Storage model
 
-Schema 2 uses three tables: `persistence_state` (store identity + schema version), `sessions` (immutable header fields + revision + ownership markers), and `events` (contiguous physical rows keyed by `session_id, seq` with JSONB `data`). Appends run in an explicit transaction, reject a non-contiguous first logical seq, insert the batch, and increment revision once. Normal appends never delete or replace earlier rows.
+Schema 2 uses three tables: `persistence_state` (store identity + schema version), `sessions` (immutable header fields + revision + ownership markers), and `events` (contiguous physical rows keyed by `session_id, seq` with JSONB `data`). The TEXT `surface_op` column stores JSON (`"append"` or a replace object), matching SQLite; readers also accept the legacy bare `append` literal. Appends run in an explicit transaction, reject a non-contiguous first logical seq, insert the batch, and increment revision once. Normal appends never delete or replace earlier rows.
 
 Like the SQLite provider, consecutive same-block `assistant/chunk` delta runs of length �?3 pack into one physical row (`text-chunks` / `reasoning-chunks` / `tool-call-chunks`, marked `ignorable = FALSE`). Resume expands pack rows back to the original logical events; physical encoding never reaches prompts, tools, replay, or live `session/event` delivery.
 

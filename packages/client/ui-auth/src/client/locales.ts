@@ -3,7 +3,7 @@ export const NS = 'auth'
 
 /** Simplified-Chinese login strings. */
 export const zh = {
-  'modal.title': '登录 DeepSeek',
+  'modal.title': '登录智枢2.0',
   'modal.description': '登录后即可使用会话、模型与设置等功能。',
   'signingIn': '正在登录…',
   'oauthContinue': '使用 OAuth 登录',
@@ -27,7 +27,7 @@ export const zh = {
 
 /** English login strings. */
 export const en: Record<keyof typeof zh, string> = {
-  'modal.title': 'Sign in to DeepSeek',
+  'modal.title': 'Sign in to 智枢2.0',
   'modal.description': 'Sign in to use sessions, models, settings, and other features.',
   'signingIn': 'Signing you in…',
   'oauthContinue': 'Sign in with OAuth',

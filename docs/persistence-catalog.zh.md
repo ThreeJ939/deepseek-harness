@@ -400,6 +400,19 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 
 ### `deliverables/*`
 
+<a id="deliverablesarchived--log-only"></a>
+
+#### `deliverables/archived` — 仅日志
+
+```ts persistence-catalog
+/** Archived filesystem files from a successful final archive_deliverable result. */
+'deliverables/archived': { turn: number; callId: ToolCallId; files: ArchivedFile[] }
+```
+
+类型： [ToolCallId](subsystems/core.zh.md)
+
+来源： [`packages/fs/tool-deliverable-archive/src/types.ts:21`](../packages/fs/tool-deliverable-archive/src/types.ts)
+
 <a id="deliverablespresented--log-only"></a>
 
 #### `deliverables/presented` — 仅日志

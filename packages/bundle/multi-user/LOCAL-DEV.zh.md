@@ -10,6 +10,8 @@
   - `dsh-multi-user`：`dsh-web-app` 已声明依赖，仅 `--patch` 通常能解析其插件包。
   - `dsh-platform`：web-app **未**声明依赖；仅 `--patch platform` 会报 `Cannot find package '@deepseek-ai/dsh-session-persistence-pg'`（以及 `attachment-s3` / `storage-pg`）。必须先把 platform 装进 profile（方式 B），或至少 `plugin add` platform 以装入依赖闭包。
 
+
+
 ## 两种启用方式（同一组合包勿混用）
 
 
@@ -32,6 +34,8 @@ pnpm dsh plugin --profile web remove @deepseek-ai/dsh-platform
 
 ---
 
+
+
 ## 推荐：multi-user + platform（装进 profile）
 
 ```powershell
@@ -49,6 +53,8 @@ pnpm dsh --profile web
 
 ---
 
+
+
 ## 仅 multi-user（`--patch`，会话仍用本地 SQLite）
 
 ```powershell
@@ -56,11 +62,19 @@ $env:DSH_JWT_SECRET = "test-jwt-secret-at-least-32-chars!!"
 $env:DSH_AUTH_ALLOW_JWT_PASTE = "1"
 $env:DSH_SAAS_USERINFO_URL = "https://example.com/userinfo"
 pnpm dsh --profile web --patch packages/bundle/multi-user/cordis.patch.yml
+
+pnpm dsh --profile web `
+  --patch packages/bundle/multi-user/cordis.patch.yml `
+  --patch packages/bundle/platform/cordis.patch.yml
 ```
+
+
 
 要求：profile **未**安装 multi-user。
 
 ---
+
+
 
 ## 混合：`--patch` multi-user + 已安装 platform
 
@@ -76,7 +90,11 @@ pnpm dsh --profile web --patch packages/bundle/multi-user/cordis.patch.yml
 
 ---
 
+
+
 ## 环境变量
+
+
 
 ### multi-user
 
@@ -85,6 +103,8 @@ $env:DSH_JWT_SECRET = "test-jwt-secret-at-least-32-chars!!"
 $env:DSH_AUTH_ALLOW_JWT_PASTE = "1"
 $env:DSH_SAAS_USERINFO_URL = "https://example.com/userinfo"
 ```
+
+
 
 ### platform（另需）
 
@@ -111,6 +131,8 @@ $env:S3_SECRET_KEY = "minioadmin"
 
 ---
 
+
+
 ## 签发测试 JWT
 
 另开 PowerShell（仓库根目录）：
@@ -123,6 +145,8 @@ node scripts/mint-multi-user-jwt.mjs alice bob
 把输出的 token 粘贴到登录页。
 
 ---
+
+
 
 ## 常见问题
 

@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-09-document-attachments-and-bmp.md
-2026-09-09-document-attachments-and-bmp.md: 8a16aebe08d0840a7688bd1b99fc757468f7470e
-2026-09-09-document-attachments-and-bmp.zh.md: dd846231f33aa2c451344571db276d42c9ffd273
+2026-09-09-document-attachments-and-bmp.md: 2b0a6b1d5b3c857071f7d907ec9c4ce98c0f50e5
+2026-09-09-document-attachments-and-bmp.zh.md: 1f47eb8de2bb5d79de3682196b0339901a744e5a

@@ -15,6 +15,7 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { PresentedOpenController } from './present-open.ts'
+import { ArchivedDownloadController } from './archive-download.ts'
 import { PresentRow } from './PresentRow.tsx'
 import { Deliverables, selectDeliverables, type DeliverablesInjected } from './Deliverables.tsx'
 import { en, NS, zh, type DeliverablesKey } from './locales.ts'
@@ -41,7 +42,9 @@ export const inject = ['slots', 'locale', 'uiConversation', 'remote', 'remote.se
  */
 export function apply(ctx: ClientContext): void {
   const opener = new PresentedOpenController()
+  const downloads = new ArchivedDownloadController()
   ctx.effect(() => () => opener.dispose())
+  ctx.effect(() => async () => { await downloads.dispose() }, 'ui-deliverables: archive download lifecycle')
   ctx.on('connection/reset', () => { opener.resetHost() })
   ctx.uiConversation.events.register(deliverablesDefinition)
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-deliverables: dictionaries')
@@ -52,9 +55,14 @@ export function apply(ctx: ClientContext): void {
       select: selectDeliverables,
       locale: NS,
       inject: (): DeliverablesInjected => ({
-        hooks: { presentedOpen: opener.state, presentedHost: opener.host },
+        hooks: {
+          presentedOpen: opener.state,
+          presentedHost: opener.host,
+          archivedDownload: downloads.state,
+        },
         reloadPresentedHost: () => opener.loadHost(),
         openPresented: (sessionId, seq, index, action) => opener.open(sessionId, seq, index, action),
+        downloadArchived: (sessionId, seq, index, filename) => downloads.download(sessionId, seq, index, filename),
       }),
     }, Deliverables),
   )

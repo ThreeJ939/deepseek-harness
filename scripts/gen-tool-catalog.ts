@@ -47,6 +47,7 @@ import * as ToolPwshPersistent from '@deepseek-ai/dsh-tool-pwsh-persistent'
 import CordisHostRunner from '@deepseek-ai/dsh-cordis-host-runner'
 import * as ToolCordis from '@deepseek-ai/dsh-tool-cordis'
 import * as ToolPresent from '@deepseek-ai/dsh-tool-present'
+import * as ToolDeliverableArchive from '@deepseek-ai/dsh-tool-deliverable-archive'
 import * as ToolFs from '@deepseek-ai/dsh-tool-fs'
 import * as ToolFsSearch from '@deepseek-ai/dsh-tool-fs-search'
 import * as ToolStrReplaceEditor from '@deepseek-ai/dsh-tool-str-replace-editor'
@@ -253,6 +254,18 @@ const TOOL_PACKAGES: ToolPackage[] = [
       await ctx.plugin(ToolPresent)
     },
     note: 'Deliveries belong to the calling Session; Web ui-deliverables supplies source-file opening and cards.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-tool-deliverable-archive',
+    dir: 'tool-deliverable-archive',
+    source: 'packages/fs/tool-deliverable-archive/src/index.ts',
+    requires: ['ctx.tools', 'ctx.fs', 'ctx.sessionProjections', 'ctx.attachments at call time'],
+    writes: ['tool/call', 'deliverables/archived after a successful final result', 'tool/result'],
+    async mount(ctx) {
+      await ctx.plugin(LocalFileSystem)
+      await ctx.plugin(ToolDeliverableArchive)
+    },
+    note: 'Copies workspace file bytes into the attachment store for Web download; successful present auto-archives by default; present remains the editable-source declaration.',
   },
   {
     pkg: '@deepseek-ai/dsh-tool-pwsh',

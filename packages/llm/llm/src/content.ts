@@ -205,6 +205,70 @@ export function projectFilesToText(
   })
 }
 
+/**
+ * Frame extracted document plain text for one model request.
+ * @param ref - durable file reference naming the source document.
+ * @param extractedText - truncated plain text from document extraction.
+ * @returns one text block body sent in place of the file block.
+ */
+export function documentFrameText(ref: FileAttachmentRef, extractedText: string): string {
+  return `[Document: ${ref.name}]\n${extractedText}`
+}
+
+/** Replace file blocks with framed document text or handle text, including nested tool results. */
+async function replaceFilesForRequest(
+  blocks: readonly ContentBlock[],
+  resolvePath: (ref: FileAttachmentRef) => string | undefined,
+  expandDocument: ((ref: FileAttachmentRef) => Promise<string | undefined>) | undefined,
+): Promise<ContentBlock[]> {
+  let next: ContentBlock[] | undefined
+  for (const [index, block] of blocks.entries()) {
+    if (block.type === 'file') {
+      next ??= blocks.slice(0, index)
+      const extracted = expandDocument === undefined
+        ? undefined
+        : await expandDocument(block.attachment)
+      next.push({
+        type: 'text',
+        text: extracted ?? fileHandleText(block.attachment, resolvePath(block.attachment)),
+      })
+      continue
+    }
+    if (block.type === 'tool-result') {
+      const content = await replaceFilesForRequest(block.content, resolvePath, expandDocument)
+      if (content !== block.content) {
+        next ??= blocks.slice(0, index)
+        next.push({ ...block, content })
+        continue
+      }
+    }
+    next?.push(block)
+  }
+  return next ?? blocks as ContentBlock[]
+}
+
+/**
+ * Project durable file history for one provider request: document media types
+ * may expand to framed extracted text via {@link expandDocument}; every other
+ * file becomes handle text. Sync {@link projectFilesToText} remains for
+ * handle-only callers such as token metering.
+ * @param messages - complete request history.
+ * @param resolvePath - resolve one reference's current execution-world read path.
+ * @param expandDocument - optional extractor; return framed text, or `undefined` to use the handle.
+ * @returns the original list without files, otherwise shallow message copies.
+ */
+export async function projectFilesForRequest(
+  messages: readonly Message[],
+  resolvePath: (ref: FileAttachmentRef) => string | undefined,
+  expandDocument?: (ref: FileAttachmentRef) => Promise<string | undefined>,
+): Promise<readonly Message[]> {
+  if (!messages.some(message => contentHasFile(message.content))) return messages
+  return Promise.all(messages.map(async (message) => {
+    const content = await replaceFilesForRequest(message.content, resolvePath, expandDocument)
+    return content === message.content ? message : { ...message, content }
+  }))
+}
+
 /** Base64 length of raw image bytes, including padding. */
 function base64Length(bytes: number): number {
   return Math.ceil(bytes / 3) * 4

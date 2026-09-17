@@ -8,6 +8,7 @@
   "include": [
     "src/client",
     "src/presented.ts",
+    "src/archived.ts",
     "src/css-modules.d.ts"
   ],
   "references": [
@@ -52,6 +53,12 @@
     },
     {
       "path": "../../fs/tool-present"
+    },
+    {
+      "path": "../../fs/tool-deliverable-archive"
+    },
+    {
+      "path": "../../attachment/attachment"
     },
     {
       "path": "../../util/workspace-path"

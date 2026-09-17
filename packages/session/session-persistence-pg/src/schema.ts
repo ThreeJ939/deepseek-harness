@@ -133,18 +133,49 @@ export function rowToMeta(row: SessionRow): SessionHeader {
 }
 
 /**
+ * Encode a logical `surfaceOp` for the TEXT `surface_op` column.
+ * Matches SQLite: JSON text so replace objects survive the round trip.
+ * @param surfaceOp - logical surface operation, or undefined when absent.
+ * @returns JSON text for the column, or null when the event has no marker.
+ */
+export function encodeSurfaceOp(surfaceOp: unknown): string | null {
+  return surfaceOp === undefined ? null : JSON.stringify(surfaceOp)
+}
+
+/**
+ * Decode a stored `surface_op` TEXT value into the logical marker.
+ * Accepts current JSON encoding and the legacy bare `append` literal written
+ * before this column used JSON text.
+ * @param surfaceOp - column value, or null when absent.
+ * @returns the logical surface operation, or undefined when the column is null.
+ */
+export function decodeSurfaceOp(surfaceOp: string | null): unknown {
+  if (surfaceOp === null) return undefined
+  try {
+    return JSON.parse(surfaceOp) as unknown
+  } catch (error: unknown) {
+    // Pre-fix rows stored the append token without JSON quotes.
+    if (surfaceOp === 'append') return 'append'
+    throw error instanceof Error
+      ? error
+      : new Error(`stored surface_op is not valid JSON: ${String(error)}`)
+  }
+}
+
+/**
  * Convert a physical event row into a SessionEvent-shaped record for adoption.
  * @param row - validated event row.
  * @returns a plain event object ready for `validateStoredEvents`.
  */
 export function eventRowToEvent(row: EventRow): Record<string, unknown> {
+  const surfaceOp = decodeSurfaceOp(row.surface_op)
   return {
     type: row.type,
     seq: row.seq,
     time: row.time,
     data: row.data,
     ...row.source_event_seqs === null ? {} : { sourceEventSeqs: row.source_event_seqs },
-    ...row.surface_op === null ? {} : { surfaceOp: row.surface_op },
+    ...surfaceOp === undefined ? {} : { surfaceOp },
     ...row.ignorable ? { ignorable: true } : {},
   }
 }

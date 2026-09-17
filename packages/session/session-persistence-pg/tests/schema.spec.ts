@@ -3,6 +3,8 @@ import {
   decodeEventRow,
   decodeSessionRow,
   decodeStoreIdentity,
+  decodeSurfaceOp,
+  encodeSurfaceOp,
   eventRowToEvent,
   rowToMeta,
 } from '../src/schema.ts'
@@ -92,7 +94,7 @@ describe('session-persistence-pg schema helpers', () => {
       time: 2,
       data: { ok: true },
       source_event_seqs: [0],
-      surface_op: 'append',
+      surface_op: encodeSurfaceOp('append'),
       ignorable: true,
     })
     expect(eventRowToEvent(row)).toEqual({
@@ -108,6 +110,40 @@ describe('session-persistence-pg schema helpers', () => {
       seq: 0, type: 'turn/start', time: 1, data: { turn: 1 },
       source_event_seqs: null, surface_op: null, ignorable: null,
     }))).toEqual({ type: 'turn/start', seq: 0, time: 1, data: { turn: 1 } })
+  })
+
+  it('round-trips replace surfaceOp through JSON TEXT encoding', () => {
+    const replace = { op: 'replace', startSeq: 0, endSeq: 0 }
+    expect(encodeSurfaceOp('append')).toBe('"append"')
+    expect(encodeSurfaceOp(replace)).toBe(JSON.stringify(replace))
+    expect(encodeSurfaceOp(undefined)).toBeNull()
+    expect(decodeSurfaceOp(encodeSurfaceOp(replace))).toEqual(replace)
+    expect(decodeSurfaceOp(encodeSurfaceOp('append'))).toBe('append')
+    // Legacy PG rows stored the append token without JSON quotes.
+    expect(decodeSurfaceOp('append')).toBe('append')
+    expect(eventRowToEvent(decodeEventRow({
+      seq: 3,
+      type: 'system/message',
+      time: 4,
+      data: { turn: 1, step: 1, message: { role: 'system', content: [] } },
+      source_event_seqs: [0],
+      surface_op: encodeSurfaceOp(replace),
+      ignorable: null,
+    }))).toMatchObject({
+      type: 'system/message',
+      surfaceOp: replace,
+      sourceEventSeqs: [0],
+    })
+    // node-pg previously JSON.stringified replace objects into TEXT; decode recovers them.
+    expect(eventRowToEvent(decodeEventRow({
+      seq: 3,
+      type: 'system/message',
+      time: 4,
+      data: { turn: 1, step: 1, message: { role: 'system', content: [] } },
+      source_event_seqs: [0],
+      surface_op: JSON.stringify(replace),
+      ignorable: null,
+    })).surfaceOp).toEqual(replace)
   })
 
   it('rejects invalid event and store identity rows', () => {

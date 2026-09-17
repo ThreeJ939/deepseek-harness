@@ -4,11 +4,10 @@ import { randomUUID } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import type { Agent, ModelSelection as AgentModelSelection } from '@deepseek-ai/dsh-agent'
-import { AttachmentError, type AttachmentStore } from '@deepseek-ai/dsh-attachment'
+import { AttachmentError } from '@deepseek-ai/dsh-attachment'
 import type {
-  AdmittedPromptContentPart, AttachmentAdmissionPart, FileAttachmentRef, ImageAttachmentRef,
+  AttachmentAdmissionPart, FileAttachmentRef, ImageAttachmentRef,
 } from '@deepseek-ai/dsh-attachment'
-import { extractText, isDocumentMediaType } from '@deepseek-ai/dsh-attachment-document'
 import type { FileUploadReceiptId } from '@deepseek-ai/dsh-client-file-upload/types'
 import type {} from '@deepseek-ai/dsh-client-file-upload'
 import {
@@ -351,8 +350,7 @@ export class SessionCommandController {
           request.content,
           receiptId => this.ctx.fileUploads.resolve(agent, receiptId),
         )
-        const admitted = await this.ctx.attachments.admitPromptContent(admission.content)
-        const content = await expandDocumentFiles(this.ctx.attachments, admitted)
+        const content = await this.ctx.attachments.admitPromptContent(admission.content)
         const message: UserMessage = createUserMessage({ content, source })
         if (this.ctx.agents.get(agent.id) !== agent) {
           throw new RemoteError(
@@ -543,7 +541,6 @@ export class SessionCommandController {
   private async readSessionState(sessionId: SessionId): Promise<SessionReadState> {
     const attached = this.ctx.sessions.get(sessionId)
     if (attached !== undefined) {
-      // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
       return { id: attached.id, header: attached.header, events: attached.snapshotEvents() }
     }
     const inspected = await inspectApiSession(this.ctx, sessionId)
@@ -584,44 +581,12 @@ function resolvePromptFileReceipts(
   return { content: resolved, receiptIds: [...receiptIds] }
 }
 
-/**
- * Replace document-typed file parts with extracted plain text for the model.
- * Non-document files remain durable file references.
- * @param attachments - mounted attachment store used to read stored bytes.
- * @param content - admitted prompt parts after image admission.
- * @returns prompt parts with documents expanded to text blocks.
- */
-async function expandDocumentFiles(
-  attachments: AttachmentStore,
-  content: readonly AdmittedPromptContentPart[],
-): Promise<AdmittedPromptContentPart[]> {
-  const next: AdmittedPromptContentPart[] = []
-  for (const part of content) {
-    if (part.type !== 'file' || !isDocumentMediaType(part.attachment.mediaType)) {
-      next.push(part)
-      continue
-    }
-    const chunks: Uint8Array[] = []
-    for await (const chunk of attachments.readFileStream(part.attachment)) {
-      chunks.push(chunk)
-    }
-    const data = Buffer.concat(chunks)
-    const text = await extractText(data, part.attachment.mediaType)
-    next.push({
-      type: 'text',
-      text: `[Document: ${part.attachment.name}]\n${text}`,
-    })
-  }
-  return next
-}
-
 function hasPromptRequest(agent: Agent, requestId: SessionRequestId): boolean {
   const matches = (message: UserMessage): boolean => {
     const source = message.source
     return source.kind === 'user' && 'rpcId' in source && source.rpcId === requestId
   }
   if (agent.inbox.nextTurn.some(matches) || agent.inbox.nextStep.some(matches)) return true
-  // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
   return agent.session.snapshotEvents().some((event) => {
     if (event.type !== 'user/message') return false
     const source = event.data.source

@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-17-upload-document-file-card-request-expand.md
+2026-09-17-upload-document-file-card-request-expand.md: 6987874cc7a793a8d83a2833dfedefd7817efd26
+2026-09-17-upload-document-file-card-request-expand.zh.md: 92280fc23fba6769aebc209109bcb252efdc05ab
