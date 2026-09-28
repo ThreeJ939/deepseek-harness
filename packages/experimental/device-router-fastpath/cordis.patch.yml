@@ -1,0 +1,14 @@
+# Opt-in host patch for the experimental device-router fast path.
+# Mount on the host composition (base/web overlay), never inside an agent preset.
+# Router precondition: that profile's defaultExecutor must be ability-gateway (not openclaw).
+
+- insert:
+    - id: device-router-fastpath
+      name: '@deepseek-ai/dsh-experimental-device-router-fastpath'
+      config:
+        baseUrl: http://192.168.70.8:28080/agent
+        routerId: camera-control
+        timeoutMs: 3000
+        maxMessageChars: 30
+        claimedExecutors:
+          - ability-gateway

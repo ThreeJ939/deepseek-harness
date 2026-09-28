@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-21-device-router-fastpath-fail-open.md
+2026-09-21-device-router-fastpath-fail-open.md: 7f5a09ccc5d1620e19d2e478ffda8cc5e05c56ca
+2026-09-21-device-router-fastpath-fail-open.zh.md: c5513f0d35158ac2d78e1aa75dbb02485c569796
