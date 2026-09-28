@@ -1,0 +1,28 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/attachment/attachment-s3/README.md
+/deepseek-ai-dsh-attachment-s3:
+  en: aaabc202d92e6ff9
+  zh: 22add7c4671a8381
+/deepseek-ai-dsh-attachment-s3/configuration-schemastery:
+  en: 39cefc29262ceb4c
+  zh: bbc2a4154e8874de
+/deepseek-ai-dsh-attachment-s3/model-experience:
+  en: 215e7ba838619b7b
+  zh: 215e7ba838619b7b
+/deepseek-ai-dsh-attachment-s3/model-experience/image-attachments-in-model-requests:
+  en: 02f74f70002d9b68
+  zh: 02f74f70002d9b68
+/deepseek-ai-dsh-attachment-s3/model-experience/image-attachments-in-model-requests/what-the-model-sees:
+  en: 9f1a0e71f222c9d3
+  zh: e614438df618f815
+/deepseek-ai-dsh-attachment-s3/model-experience/image-attachments-in-model-requests/token-effect:
+  en: 518f6a8ecb5604ca
+  zh: e8f2ca5b522cc794
+/deepseek-ai-dsh-attachment-s3/model-experience/image-attachments-in-model-requests/kv-cache-effect:
+  en: 6743479c706ec239
+  zh: 42990824295ba9a5
+/deepseek-ai-dsh-attachment-s3/known-limitations-and-deferred-work:
+  en: 7eec1ff366155363
+  zh: 98b5b643aaec4ad4

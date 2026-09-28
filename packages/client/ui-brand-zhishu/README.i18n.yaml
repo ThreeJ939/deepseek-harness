@@ -1,0 +1,40 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/client/ui-brand-zhishu/README.md
+/:
+  en: 78a9754b98295976
+  zh: 53c518af91bc36e4
+/deepseek-ai-dsh-client-ui-brand-zhishu:
+  en: be83bcd16af7a911
+  zh: 15f821447a5d51eb
+/deepseek-ai-dsh-client-ui-brand-zhishu/summary:
+  en: 680d234b697f137d
+  zh: c514da46c7605837
+/deepseek-ai-dsh-client-ui-brand-zhishu/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 09388d293f9be9cb
+/deepseek-ai-dsh-client-ui-brand-zhishu/use-this-package:
+  en: e6f889f79b538f18
+  zh: bceb90b7ee448ffb
+/deepseek-ai-dsh-client-ui-brand-zhishu/use-this-package/replacing-the-official-brand:
+  en: 4ea1073b0932d874
+  zh: 87ee809461b8d33d
+/deepseek-ai-dsh-client-ui-brand-zhishu/understand-the-implementation:
+  en: 66219b01e6b2f848
+  zh: 4fe10806d85ef98e
+/deepseek-ai-dsh-client-ui-brand-zhishu/further-exploration:
+  en: 6d8fd2407b3ab7d2
+  zh: ae345c98b565a094
+/deepseek-ai-dsh-client-ui-brand-zhishu/model-experience:
+  en: 618008c7641070e7
+  zh: 7233febb4d92ccfb
+/deepseek-ai-dsh-client-ui-brand-zhishu/model-experience/kv-cache-effect:
+  en: ca75c51c89c2c9b0
+  zh: f57cc48a1b5cbfa9
+/deepseek-ai-dsh-client-ui-brand-zhishu/known-limitations-and-deferred-work:
+  en: 83e7f9c95bcffc54
+  zh: dd81403f82cf3956
+/deepseek-ai-dsh-client-ui-brand-zhishu/known-limitations-and-deferred-work/dev-note:
+  en: e368635c2e69b577
+  zh: 6b0fcfc1e089e5d6

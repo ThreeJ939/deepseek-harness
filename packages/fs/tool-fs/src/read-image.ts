@@ -1,5 +1,5 @@
 /**
- * The model-facing `read_image` tool commits a PNG/JPEG/WebP/GIF file. A path
+ * The model-facing `read_image` tool commits a PNG/JPEG/WebP/GIF/BMP file. A path
  * without a file extension is identified from its file signature, while the
  * attachment service's full decode stays authoritative. The mounted `ctx.fs`
  * backend owns path resolution and read access; names only declare media type.
@@ -28,6 +28,7 @@ const IMAGE_EXTENSIONS: Readonly<Record<string, ImageMediaType>> = {
   '.jpeg': 'image/jpeg',
   '.webp': 'image/webp',
   '.gif': 'image/gif',
+  '.bmp': 'image/bmp',
 }
 
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a] as const
@@ -56,6 +57,7 @@ export function sniffImageMediaType(data: Uint8Array): ImageMediaType | undefine
   if (matchesBytes(data, 0, JPEG_SIGNATURE)) return 'image/jpeg'
   if (matchesAscii(data, 0, 'GIF87a') || matchesAscii(data, 0, 'GIF89a')) return 'image/gif'
   if (matchesAscii(data, 0, 'RIFF') && matchesAscii(data, 8, 'WEBP')) return 'image/webp'
+  if (matchesAscii(data, 0, 'BM')) return 'image/bmp'
   return undefined
 }
 
@@ -65,7 +67,7 @@ const IMAGE_VALUE_SCHEMA = {
   required: true,
   properties: {
     attachmentId: { type: 'string', required: true },
-    mediaType: { type: 'string', enum: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'], required: true },
+    mediaType: { type: 'string', enum: ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/bmp'], required: true },
     bytes: { type: 'integer', required: true },
     width: { type: 'integer', required: true },
     height: { type: 'integer', required: true },
@@ -208,7 +210,7 @@ function imageReadContent(value: ImageReadValue): ContentBlock[] {
 export function applyReadImageTool(ctx: Context): void {
   ctx.tools.register(defineTool({
     name: 'read_image',
-    description: 'Read a PNG/JPEG/WebP/GIF file and return the image itself. '
+    description: 'Read a PNG/JPEG/WebP/GIF/BMP file and return the image itself. '
       + 'Large images are downscaled automatically; do not install image libraries or create thumbnails to inspect an image.',
     parameters: {
       file_path: { type: 'string', required: true, description: 'Path to the image file, resolved by the filesystem backend.' },
@@ -246,7 +248,7 @@ export function applyReadImageTool(ctx: Context): void {
       const extension = extname(args.file_path).toLowerCase()
       const declared = imageMediaTypeForPath(args.file_path)
       if (declared === undefined && extension !== '') {
-        throw new Error(`cannot read "${args.file_path}": the ${extension} extension does not declare a supported image format; read_image accepts PNG/JPEG/WebP/GIF files, including extension-less files in those formats`)
+        throw new Error(`cannot read "${args.file_path}": the ${extension} extension does not declare a supported image format; read_image accepts PNG/JPEG/WebP/GIF/BMP files, including extension-less files in those formats`)
       }
       const attachments = ctx.get('attachments')
       if (attachments === undefined) {
@@ -263,7 +265,7 @@ export function applyReadImageTool(ctx: Context): void {
       const data = await ctx.fs.readBytes(target, exec.signal, byteCap)
       const mediaType = declared ?? sniffImageMediaType(data)
       if (mediaType === undefined) {
-        throw new Error(`cannot read "${target.displayPath}": the file content is not a supported image format; read_image accepts PNG/JPEG/WebP/GIF`)
+        throw new Error(`cannot read "${target.displayPath}": the file content is not a supported image format; read_image accepts PNG/JPEG/WebP/GIF/BMP`)
       }
       if (declared === undefined) assertDeploymentAccepts(attachments, mediaType, target.displayPath)
       // Persist before returning: the image block must reference a durably
@@ -302,7 +304,7 @@ export function applyReadImageTool(ctx: Context): void {
         }
         if (error.code === 'INVALID_IMAGE' && declared === undefined) {
           throw new Error(
-            `cannot read "${target.displayPath}": the bytes do not decode as a supported PNG/JPEG/WebP/GIF image; the file may be truncated or corrupt`,
+            `cannot read "${target.displayPath}": the bytes do not decode as a supported PNG/JPEG/WebP/GIF/BMP image; the file may be truncated or corrupt`,
             { cause: error },
           )
         }
@@ -314,7 +316,7 @@ export function applyReadImageTool(ctx: Context): void {
           )
         }
         throw new Error(
-          `cannot read "${target.displayPath}": the ${extension} extension declares ${mediaType}, but the bytes use a different image format; rename the file to match its actual format if it is PNG/JPEG/WebP/GIF, or convert it to one of those formats`,
+          `cannot read "${target.displayPath}": the ${extension} extension declares ${mediaType}, but the bytes use a different image format; rename the file to match its actual format if it is PNG/JPEG/WebP/GIF/BMP, or convert it to one of those formats`,
           { cause: error },
         )
       }

@@ -37,9 +37,11 @@ import { HarnessError, INVALID_CREDENTIAL_CODE } from './error.ts'
 import { normalizeLlmFailure } from './adapter-failure.ts'
 import { normalizeApiKey } from './api-key.ts'
 import {
-  contentHasFile, contentHasImage, fileHandleText, projectFilesToText, projectImagesForTextModel, projectToolUpdates,
+  contentHasFile, contentHasImage, documentFrameText, fileHandleText, projectFilesForRequest,
+  projectImagesForTextModel, projectToolUpdates,
 } from './content.ts'
 import type { FileAttachmentRef } from '@deepseek-ai/dsh-attachment'
+import { extractText, isDocumentMediaType } from '@deepseek-ai/dsh-attachment-document'
 
 export * from './attribution.ts'
 export * from './brand.ts'
@@ -678,10 +680,10 @@ export class LlmRuntime extends TypertRemoteService {
   }
 
   /**
-   * Resolve the exact text one durable file occurrence contributes to every
-   * provider request in the current execution environment.
+   * Resolve the synchronous handle text one durable file occurrence contributes
+   * to request measurement. Document extraction runs only at adapter dispatch.
    * @param ref - durable verbatim file reference from model history.
-   * @returns the same deterministic handle text used at adapter dispatch.
+   * @returns deterministic handle text for the current execution environment.
    */
   fileRequestText(ref: FileAttachmentRef): string {
     return fileHandleText(ref, this.fileReadPath(ref))
@@ -1026,6 +1028,37 @@ export class LlmRuntime extends TypertRemoteService {
   }
 
   /**
+   * Extract and frame one document-typed file for the current provider request.
+   * Non-document refs and extraction failures return `undefined` so the caller
+   * falls back to handle text.
+   * @param ref - durable file reference from model history.
+   * @returns framed extracted text, or undefined to use the path handle.
+   */
+  private async expandDocumentFile(ref: FileAttachmentRef): Promise<string | undefined> {
+    if (!isDocumentMediaType(ref.mediaType)) return undefined
+    const attachments = this.ctx.get('attachments')
+    if (attachments === undefined) return undefined
+    try {
+      const chunks: Uint8Array[] = []
+      for await (const chunk of attachments.readFileStream(ref)) {
+        chunks.push(chunk)
+      }
+      const total = chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0)
+      const data = new Uint8Array(total)
+      let offset = 0
+      for (const chunk of chunks) {
+        data.set(chunk, offset)
+        offset += chunk.byteLength
+      }
+      const text = await extractText(data, ref.mediaType)
+      return documentFrameText(ref, text)
+    } catch {
+      // Extraction or storage faults degrade to the path handle for this turn.
+      return undefined
+    }
+  }
+
+  /**
    * Final adapter boundary. Adapter selection, dispatch, iterator construction,
    * and iteration failures become one terminal failure chunk. Middleware and
    * downstream consumer failures remain thrown plugin or consumer errors.
@@ -1062,10 +1095,15 @@ export class LlmRuntime extends TypertRemoteService {
         : Object.isFrozen(options)
           ? deepFreeze({ ...options, ...resolvedConfig })
           : { ...options, ...resolvedConfig }
-      // Files are never dispatched natively: every route receives handle text.
+      // Files are never dispatched natively: documents expand to framed text
+      // when extractable; every other file becomes handle text.
       let projectedMessages: readonly RequestMessage[] = resolvedOptions.messages
       if (projectedMessages.some(message => contentHasFile(message.content))) {
-        projectedMessages = projectFilesToText(projectedMessages, ref => this.fileReadPath(ref))
+        projectedMessages = await projectFilesForRequest(
+          projectedMessages,
+          ref => this.fileReadPath(ref),
+          ref => this.expandDocumentFile(ref),
+        )
       }
       if (modelInfo.inputModalities !== undefined
         && !modelInfo.inputModalities.includes('image')

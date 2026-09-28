@@ -8,12 +8,20 @@ import { isAppendSurfaceEvent } from '@deepseek-ai/dsh-session/surface'
 import type { TurnTailOwnerProps } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { ConversationNodeDefinition } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { MarkdownFileMentions } from '@deepseek-ai/dsh-client-ui-primitives'
+import type { ArchivedFile } from '@deepseek-ai/dsh-tool-deliverable-archive/types'
 import type { PresentedFile } from '@deepseek-ai/dsh-tool-present/types'
+import { isArchivedData, isArchivedFile } from '../archived.ts'
 import { isChangesEvent } from '../changes.ts'
 import { basename, isPresentedData, isPresentedFile } from '../presented.ts'
 
 /** A declared file with its authorized open coordinates. */
 export interface PresentedPath extends PresentedFile {
+  readonly seq: number
+  readonly index: number
+}
+
+/** An archived file with its authorized download coordinates. */
+export interface ArchivedPath extends ArchivedFile {
   readonly seq: number
   readonly index: number
 }
@@ -32,6 +40,7 @@ export interface ChangesTurnData {
 export interface DeliverablesTurnData {
   readonly produced: readonly ProducedPath[]
   readonly presented?: readonly PresentedPath[]
+  readonly archived?: readonly ArchivedPath[]
   readonly changes?: ChangesTurnData
 }
 
@@ -168,6 +177,7 @@ export const deliverablesDefinition: ConversationNodeDefinition<DeliverablesStat
     if (event.type === 'turn/start') return { id: String(event.data.turn), role: 'start' }
     if (event.type === 'tool/call') return { id: String(event.data.turn), role: 'update' }
     if (event.type === 'deliverables/presented') return isPresentedData(event.data) ? { id: String(event.data.turn), role: 'update' } : null
+    if (event.type === 'deliverables/archived') return isArchivedData(event.data) ? { id: String(event.data.turn), role: 'update' } : null
     if (event.type === 'workspace/changes') return isChangesEvent(event.data) ? { id: String(event.data.turn), role: 'update' } : null
     if (event.type === 'tool/result' && isAppendSurfaceEvent(event)) {
       return { id: String(event.data.turn), role: 'update' }
@@ -190,6 +200,17 @@ export const deliverablesDefinition: ConversationNodeDefinition<DeliverablesStat
       }
       if (presented.length === 0) return context.state
       return { ...context.state, presented: [...context.state.presented ?? [], ...presented] }
+    }
+    if (match.event.type === 'deliverables/archived') {
+      const { files } = match.event.data
+      const seq = match.event.seq
+      const archived: ArchivedPath[] = []
+      for (let index = 0; index < files.length; index += 1) {
+        const file = files[index]
+        if (isArchivedFile(file)) archived.push({ ...file, seq, index })
+      }
+      if (archived.length === 0) return context.state
+      return { ...context.state, archived: [...context.state.archived ?? [], ...archived] }
     }
     if (match.event.type === 'tool/call') {
       const calls = new Map(context.state.calls)
@@ -214,6 +235,7 @@ export const deliverablesDefinition: ConversationNodeDefinition<DeliverablesStat
       && previous.key === 'deliverables'
       && previous.value.produced === context.state.produced
       && previous.value.presented === context.state.presented
+      && previous.value.archived === context.state.archived
       && previous.value.changes === context.state.changes) return previous
     return {
       kind: 'turn',
@@ -222,6 +244,7 @@ export const deliverablesDefinition: ConversationNodeDefinition<DeliverablesStat
       value: {
         produced: context.state.produced,
         ...context.state.presented === undefined ? {} : { presented: context.state.presented },
+        ...context.state.archived === undefined ? {} : { archived: context.state.archived },
         ...context.state.changes === undefined ? {} : { changes: context.state.changes },
       },
     }
@@ -245,6 +268,19 @@ export function changesForClosing(owner: TurnTailOwnerProps): ChangesTurnData | 
 export function presentedForClosing(owner: TurnTailOwnerProps): PresentedPath[] {
   const files = new Map<string, PresentedPath>()
   for (const file of owner.turn.data.get('deliverables')?.presented ?? []) {
+    if (file.seq < owner.seq) files.set(file.path, file)
+  }
+  return [...files.values()]
+}
+
+/**
+ * Select the latest archive of each path before the closing reply.
+ * @param owner - closing turn and sequence.
+ * @returns replayable archives in first-seen path order.
+ */
+export function archivedForClosing(owner: TurnTailOwnerProps): ArchivedPath[] {
+  const files = new Map<string, ArchivedPath>()
+  for (const file of owner.turn.data.get('deliverables')?.archived ?? []) {
     if (file.seq < owner.seq) files.set(file.path, file)
   }
   return [...files.values()]

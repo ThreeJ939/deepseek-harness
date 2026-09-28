@@ -8,6 +8,7 @@
   "files": [
     "src/api-path.ts",
     "src/api-request-trust.ts",
+    "src/auth-storage-key.ts",
     "src/browser-auth.ts",
     "src/client/random-uuid.ts",
     "src/client/rpc.ts",
@@ -38,6 +39,9 @@
     },
     {
       "path": "../../credentials/credentials"
+    },
+    {
+      "path": "../../host/auth-middleware"
     },
     {
       "path": "../../host/webserver"

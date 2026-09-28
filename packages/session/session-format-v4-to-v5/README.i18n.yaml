@@ -1,0 +1,49 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/session/session-format-v4-to-v5/README.md
+/:
+  en: 81aa18483fc2a25c
+  zh: 993b532292620788
+/deepseek-ai-dsh-session-format-v4-to-v5:
+  en: 5c911c36fc777867
+  zh: 523c41bb93008361
+/deepseek-ai-dsh-session-format-v4-to-v5/summary:
+  en: 0218da534b2b5a18
+  zh: 4b197a8121d6a9c5
+/deepseek-ai-dsh-session-format-v4-to-v5/table-of-contents:
+  en: f14fab7e600ca409
+  zh: 26bdfa6ffd87e040
+/deepseek-ai-dsh-session-format-v4-to-v5/use-this-package:
+  en: a9f1d18877e0a497
+  zh: 2f93809a50660fec
+/deepseek-ai-dsh-session-format-v4-to-v5/v4-to-v5-specification:
+  en: de51a07e2e36977a
+  zh: 4eafcc08dfd3225f
+/deepseek-ai-dsh-session-format-v4-to-v5/v4-to-v5-specification/header-and-physical-framing:
+  en: 6782efacbe9bfaa3
+  zh: 8a2fc543a8435201
+/deepseek-ai-dsh-session-format-v4-to-v5/v4-to-v5-specification/event-and-run-pass-through:
+  en: 22fe7b18b2989c9b
+  zh: d9a2f7630f6d0f59
+/deepseek-ai-dsh-session-format-v4-to-v5/v4-to-v5-specification/delivery-generations:
+  en: c12df78f68754761
+  zh: cb5b18649da3861c
+/deepseek-ai-dsh-session-format-v4-to-v5/v4-to-v5-specification/source-audit-and-refusal:
+  en: 59704d3cc45e245b
+  zh: ed6f05eafa2ca8e4
+/deepseek-ai-dsh-session-format-v4-to-v5/native-v5-admission:
+  en: fafa9f82b05eea85
+  zh: 4b523319880c5881
+/deepseek-ai-dsh-session-format-v4-to-v5/understand-the-implementation:
+  en: e173e8d6a6cb3534
+  zh: 333ca2b760165c4b
+/deepseek-ai-dsh-session-format-v4-to-v5/further-exploration:
+  en: 675b9ce46252d864
+  zh: ed4b22b90661a72d
+/deepseek-ai-dsh-session-format-v4-to-v5/known-limitations-and-deferred-work:
+  en: 14aa5d08f9d4c1b8
+  zh: 8fce03fd49a65619
+/deepseek-ai-dsh-session-format-v4-to-v5/dev-note:
+  en: b75c8458928b72b9
+  zh: 94aace1d30522a51

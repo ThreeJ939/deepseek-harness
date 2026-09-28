@@ -149,6 +149,8 @@
             name: '@deepseek-ai/dsh-tool-skill'
           - id: present
             name: '@deepseek-ai/dsh-tool-present'
+          - id: archive-deliverable
+            name: '@deepseek-ai/dsh-tool-deliverable-archive'
           - id: tool-plugin-manager
             name: '@deepseek-ai/dsh-plugin-manager/tools'
             disabled: !!js "!ctx.get('profileContext')"

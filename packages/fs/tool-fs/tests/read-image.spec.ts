@@ -166,6 +166,7 @@ describe('imageMediaTypeForPath', () => {
     expect(imageMediaTypeForPath('b.jpeg')).toBe('image/jpeg')
     expect(imageMediaTypeForPath('c.webp')).toBe('image/webp')
     expect(imageMediaTypeForPath('d.Gif')).toBe('image/gif')
+    expect(imageMediaTypeForPath('e.bmp')).toBe('image/bmp')
     expect(imageMediaTypeForPath('note.txt')).toBeUndefined()
     expect(imageMediaTypeForPath('png')).toBeUndefined()
   })
@@ -182,6 +183,7 @@ describe('sniffImageMediaType', () => {
     expect(sniffImageMediaType(ascii('GIF87a...'))).toBe('image/gif')
     expect(sniffImageMediaType(ascii('GIF89a...'))).toBe('image/gif')
     expect(sniffImageMediaType(ascii('RIFF\0\0\0\0WEBPVP8 '))).toBe('image/webp')
+    expect(sniffImageMediaType(ascii('BM\0\0'))).toBe('image/bmp')
   })
 
   it('returns undefined for other bytes, incomplete signatures, and non-WebP RIFF containers', () => {
@@ -384,7 +386,7 @@ describe('extension-less paths', () => {
     const ctx = await setup()
     const result = await readImage(ctx, { file_path: 'broken' }, agentOn('vision-model'))
     expect(result.isError).toBe(true)
-    expect(text(result)).toContain('do not decode as a supported PNG/JPEG/WebP/GIF image')
+    expect(text(result)).toContain('do not decode as a supported PNG/JPEG/WebP/GIF/BMP image')
   })
 
   it('applies the deployment media-type policy to the sniffed format', async () => {
@@ -568,7 +570,7 @@ describe('image admission failures', () => {
     const result = await readImage(ctx, { file_path: 'wrong.jpg' }, agentOn('vision-model'))
     expect(result.isError).toBe(true)
     expect(text(result)).toContain('the .jpg extension declares image/jpeg')
-    expect(text(result)).toContain('rename the file to match its actual format if it is PNG/JPEG/WebP/GIF, or convert it to one of those formats')
+    expect(text(result)).toContain('rename the file to match its actual format if it is PNG/JPEG/WebP/GIF/BMP, or convert it to one of those formats')
   })
 
   it('caps an extension-less read at maxImageBytes before format detection', async () => {

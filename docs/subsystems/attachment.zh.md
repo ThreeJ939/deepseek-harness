@@ -14,7 +14,7 @@
 
 ```ts type-equiv
 /** Raster image formats accepted by the version-one attachment path. */
-type ImageMediaType = 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif'
+type ImageMediaType = 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif' | 'image/bmp'
 ```
 
 ```ts type-equiv
@@ -59,6 +59,8 @@ interface ImageAttachmentLimits {
 本地后端每条消息最多准入 20 张图片，源图编码数据总量不超过 200 MiB。单张源图不得超过 20 MiB、64,000,000 像素和单边 8192 像素。这些源文件限制先于独立的规范化阶段执行；该阶段默认把长边限制为 2048 像素，把编码数据限制为 4 MiB。
 
 引用记录固有尺寸和编码长度，使客户端无需先解码即可排布历史记录；每次权威读取仍会根据对象重新校验摘要、媒体签名、尺寸和元数据。
+
+`FileAttachmentRef` 上的可选 `mediaType` 携带浏览器声明的 MIME 类型。文档类文件（PDF、DOCX 与常见文本格式）在会话日志中仍保持持久文件引用；LLM 请求装配经 [`dsh-attachment-document`](../../packages/attachment/attachment-document/README.zh.md) 提取纯文本，因而聊天气泡保留结构化文件块。本地后端将对象存于 `<DSH_HOME>/attachments/v1` 下。[`dsh-attachment-s3`](../../packages/attachment/attachment-s3/README.zh.md) 提供方在兼容 S3 的对象存储上保持同一引用约定；[`dsh-platform`](../../packages/bundle/platform/README.zh.md) 覆盖层通过 `S3_*` 环境变量挂载它。BMP 源图以图片（`image/bmp`）准入，与 PNG、JPEG、WebP、GIF 并列。
 
 ## 提交与经校验读取的数据
 

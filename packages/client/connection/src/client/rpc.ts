@@ -6,6 +6,10 @@ import {
   type RpcId as RpcIdType,
 } from '../rpc.ts'
 import type { ClientConnectionRpc, ConnectionRpcResult } from '../rpc.ts'
+import {
+  notifyAuthExpired,
+  readStoredAuthJwt,
+} from '../auth-storage-key.ts'
 import { randomUuid } from './random-uuid.ts'
 
 const CHANNEL_PATTERN = /^\/[A-Za-z0-9._~-]+$/
@@ -46,15 +50,22 @@ export function createWebConnectionRpc(doFetch?: RpcFetch, openStream?: RpcStrea
       // The channel key is absolute; a page posts the document-relative form, and
       // a carrier that resolves against the Host root accepts the same form.
       const route = `${channel}/${endpoint}`.slice(1)
+      const headers: Record<string, string> = { 'content-type': 'application/json' }
+      const jwt = readStoredAuthJwt()
+      if (jwt !== undefined) headers.authorization = `Bearer ${jwt}`
       const response = await send(
         route,
         {
           method: 'POST',
-          headers: { 'content-type': 'application/json' },
+          headers,
           body: JSON.stringify(message),
           ...signal === undefined ? {} : { signal },
         },
       )
+      if (response.status === 401) {
+        notifyAuthExpired()
+        throw new Error(`transport failure for ${channel}/${endpoint}: HTTP 401`)
+      }
       if (!response.ok) {
         throw new Error(`transport failure for ${channel}/${endpoint}: HTTP ${response.status}`)
       }

@@ -1,0 +1,46 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/deliverables/tool-deliverable-archive/README.md
+/:
+  en: f12e995e2a84a98b
+  zh: 42dc80632bfd0e22
+/deepseek-ai-dsh-tool-deliverable-archive:
+  en: 2c45453fe15f049e
+  zh: 6b36bd5643d15f2d
+/deepseek-ai-dsh-tool-deliverable-archive/summary:
+  en: 58a18a22d331eb3a
+  zh: 091347a9a6f0e348
+/deepseek-ai-dsh-tool-deliverable-archive/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 09388d293f9be9cb
+/deepseek-ai-dsh-tool-deliverable-archive/use-this-package:
+  en: 63581b7fd909069f
+  zh: 591bd9c1c3921216
+/deepseek-ai-dsh-tool-deliverable-archive/understand-the-implementation:
+  en: 0b030622077342cc
+  zh: fcef28bd3e5cfa44
+/deepseek-ai-dsh-tool-deliverable-archive/further-exploration:
+  en: 0ff71a5a93d605e1
+  zh: d1ed073b675bd2db
+/deepseek-ai-dsh-tool-deliverable-archive/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-tool-deliverable-archive/model-experience/archive-deliverable:
+  en: a6691c06d148dc69
+  zh: a6691c06d148dc69
+/deepseek-ai-dsh-tool-deliverable-archive/model-experience/archive-deliverable/what-the-model-sees:
+  en: b812f91c7f595f40
+  zh: 7aef3b38da10cdaf
+/deepseek-ai-dsh-tool-deliverable-archive/model-experience/archive-deliverable/token-effect:
+  en: 85b5d55cd0d48ecb
+  zh: 17b15a57e20efe8e
+/deepseek-ai-dsh-tool-deliverable-archive/model-experience/archive-deliverable/kv-cache-effect:
+  en: cac2207b9b1fc5c5
+  zh: 8b617045c49794f1
+/deepseek-ai-dsh-tool-deliverable-archive/known-limitations-and-deferred-work:
+  en: d240494ecbffef3f
+  zh: 9fb64619227be678
+/deepseek-ai-dsh-tool-deliverable-archive/known-limitations-and-deferred-work/dev-note:
+  en: bebfb23ee19f123e
+  zh: 3bb0c20c93f16f98

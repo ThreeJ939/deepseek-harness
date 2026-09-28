@@ -50,6 +50,14 @@ export {
 export { HostConnectionService } from './rpc-host.ts'
 
 export { API_PATH } from './api-path.ts'
+export {
+  DSH_AUTH_EXPIRED_EVENT,
+  DSH_AUTH_JWT_KEY,
+  clearStoredAuthJwt,
+  isAuthJwtExpired,
+  notifyAuthExpired,
+  readStoredAuthJwt,
+} from './auth-storage-key.ts'
 
 /** Stable Cordis plugin name. */
 export const name = 'client-connection'

@@ -14,7 +14,7 @@ Source: [`packages/attachment/attachment/src/types.ts`](../../packages/attachmen
 
 ```ts type-equiv
 /** Raster image formats accepted by the version-one attachment path. */
-type ImageMediaType = 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif'
+type ImageMediaType = 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif' | 'image/bmp'
 ```
 
 ```ts type-equiv
@@ -59,6 +59,8 @@ interface ImageAttachmentLimits {
 The local backend admits at most 20 images and 200 MiB of encoded source data per message. One source may use up to 20 MiB, 64,000,000 pixels, and 8192 pixels on either side. These source limits precede the independent normalization stage, which limits the long edge to 2048 pixels and encoded data to 4 MiB by default.
 
 The reference records intrinsic dimensions and encoded length so clients can lay out history without decoding first, while every authoritative read still re-checks digest, media signature, dimensions, and metadata against the object.
+
+Optional `mediaType` on `FileAttachmentRef` carries the browser-declared MIME type. Document-typed files (PDF, DOCX, and common text formats) remain durable file references in the session log; LLM request assembly extracts plain text through [`dsh-attachment-document`](../../packages/attachment/attachment-document/README.md) so chat cards keep the structured file block. The local backend stores objects under `<DSH_HOME>/attachments/v1`. The [`dsh-attachment-s3`](../../packages/attachment/attachment-s3/README.md) provider keeps the same reference contract on S3-compatible object storage; the [`dsh-platform`](../../packages/bundle/platform/README.md) overlay mounts it with `S3_*` environment variables. BMP sources are admitted as images (`image/bmp`) alongside PNG, JPEG, WebP, and GIF.
 
 ## Commit and verified-read payloads
 

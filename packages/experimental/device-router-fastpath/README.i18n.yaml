@@ -1,0 +1,55 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/experimental/device-router-fastpath/README.md
+/:
+  en: 4529ae4208a72d1b
+  zh: e39a544f8b6ecdb9
+/deepseek-ai-dsh-experimental-device-router-fastpath:
+  en: a9d3b9c840600e29
+  zh: f6063e1513610efd
+/deepseek-ai-dsh-experimental-device-router-fastpath/summary:
+  en: 350ebfed6654cd2f
+  zh: 60c116be45cc0fde
+/deepseek-ai-dsh-experimental-device-router-fastpath/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 09388d293f9be9cb
+/deepseek-ai-dsh-experimental-device-router-fastpath/use-this-package:
+  en: 9551351ebf9f1704
+  zh: 2e13b98f3c90cc33
+/deepseek-ai-dsh-experimental-device-router-fastpath/use-this-package/configuration:
+  en: de241c9306363b68
+  zh: b3238417af74bf0d
+/deepseek-ai-dsh-experimental-device-router-fastpath/use-this-package/local-patch:
+  en: 8cc97aedfd9143af
+  zh: 7f50b373f735399a
+/deepseek-ai-dsh-experimental-device-router-fastpath/use-this-package/router-precondition:
+  en: 9bca579aa8db2876
+  zh: 4b58c5140a1123e2
+/deepseek-ai-dsh-experimental-device-router-fastpath/understand-the-implementation:
+  en: a9ffbecbaf0fed8a
+  zh: d58e4bf5a5e0fcd2
+/deepseek-ai-dsh-experimental-device-router-fastpath/further-exploration:
+  en: 91dcf52c959d3421
+  zh: ca28c913068f9806
+/deepseek-ai-dsh-experimental-device-router-fastpath/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-experimental-device-router-fastpath/model-experience/claimed-device-control-notice:
+  en: 9964b438a0d2e4d5
+  zh: fc8e74e5341192b9
+/deepseek-ai-dsh-experimental-device-router-fastpath/model-experience/claimed-device-control-notice/what-the-model-sees:
+  en: 1bbe2ef72d519ff0
+  zh: 7b335862a9f7c681
+/deepseek-ai-dsh-experimental-device-router-fastpath/model-experience/claimed-device-control-notice/token-effect:
+  en: 1ae6915551629c00
+  zh: f7db91c9b928cd8a
+/deepseek-ai-dsh-experimental-device-router-fastpath/model-experience/claimed-device-control-notice/kv-cache-effect:
+  en: 19a643c00d7a9a98
+  zh: 452b1e3ff1199d80
+/deepseek-ai-dsh-experimental-device-router-fastpath/known-limitations-and-deferred-work:
+  en: bc7eed990837b01f
+  zh: 38cbddb2d441349d
+/deepseek-ai-dsh-experimental-device-router-fastpath/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: 8ec3e73528ddb1a6

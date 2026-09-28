@@ -28,6 +28,8 @@ import type {
 
 export type * from './types.ts'
 export { DirectoryPickerController } from './directory-picker.ts'
+export type { DefaultWorkspaceProvisioner } from './default-workspace-provisioner.ts'
+import type {} from './default-workspace-provisioner.ts'
 
 /** First-use directory policy for the Host account. */
 export interface Config {

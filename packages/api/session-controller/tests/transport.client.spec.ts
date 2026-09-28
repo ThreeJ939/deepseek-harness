@@ -21,6 +21,7 @@ import type {
   SessionAssistantStreamBaseline,
   SessionAssistantStreamFrame,
   SessionControlFrame,
+  SessionControlRequest,
   SessionEventEntry,
   SessionFollowFrame,
   SessionFollowRequest,
@@ -133,7 +134,7 @@ class ScriptedSessionRemote implements SessionTransportRemote {
     return Promise.resolve(result)
   }
 
-  control(signal = new AbortController().signal): RemoteStreamHandle<SessionControlFrame, never> {
+  control(_request: SessionControlRequest = {}, signal = new AbortController().signal): RemoteStreamHandle<SessionControlFrame, never> {
     return streamHandle(this.controlSequence(signal))
   }
 

@@ -9,6 +9,7 @@
     "src/client",
     "src/changes.ts",
     "src/presented.ts",
+    "src/archived.ts",
     "src/css-modules.d.ts"
   ],
   "references": [
@@ -62,6 +63,12 @@
     },
     {
       "path": "../../deliverables/tool-present"
+    },
+    {
+      "path": "../../deliverables/tool-deliverable-archive"
+    },
+    {
+      "path": "../../attachment/attachment"
     },
     {
       "path": "../../deliverables/workspace-changes"

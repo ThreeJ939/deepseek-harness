@@ -39,6 +39,7 @@ export function canPassThroughNormalization(
   policy: NormalizationPolicy,
 ): boolean {
   return detected.mediaType !== 'image/gif'
+    && detected.mediaType !== 'image/bmp'
     && !detected.animated
     && !detected.carriesMetadata
     && detected.depth === 'uchar'
@@ -122,7 +123,10 @@ export async function normalizeImage(
       policy.maxBytes,
     )
     const chosen = isExhaustedEncoding(encoded) ? encoded.smallest : encoded
-    return await verifyNormalizedImage(chosen, detected.mediaType === 'image/gif' ? undefined : detected.hasAlpha)
+    return await verifyNormalizedImage(
+      chosen,
+      detected.mediaType === 'image/gif' || detected.mediaType === 'image/bmp' ? undefined : detected.hasAlpha,
+    )
   } catch (error) {
     if (error instanceof AttachmentError) throw error
     const source = detected.mediaType === 'image/png' && detected.depth !== 'uchar'

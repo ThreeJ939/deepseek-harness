@@ -17,6 +17,7 @@ import type {
   SessionListMetadata, SessionProjectionHints, SessionProjectionValues, SessionSearchItem,
   SessionSearchValue, SessionSummary,
 } from './types.ts'
+import { getPrincipal } from './ownership.ts'
 
 const SEARCH_PROVIDER_CALL_LIMIT = 100
 const SESSION_SEARCH_QUERY_MAX_CHARS = 500
@@ -107,6 +108,7 @@ export class ApiSessionList {
   summaryFor(session: Session): SessionSummary {
     const projections = this.projectionsFor(session.header, session)
     const metadata = projections?.values.sessionListMetadata
+    const { ownerUserId } = session.header
     return {
       sessionId: session.id,
       updatedAt: updatedAt(session.header, metadata),
@@ -115,6 +117,7 @@ export class ApiSessionList {
       blank: metadata?.blank ?? session.seq === 0,
       ...listFields(session.header),
       ...(projections === undefined ? {} : { projections }),
+      ...(ownerUserId !== undefined ? { ownerUserId } : {}),
     }
   }
 
@@ -127,9 +130,13 @@ export class ApiSessionList {
     signal?.throwIfAborted()
     const records = await this.ctx.sessionQuery.listSessions(signal)
     signal?.throwIfAborted()
+    const ownerUserId = getPrincipal(this.ctx)?.userId
+    const ownedByCaller = (header: SessionHeader): boolean =>
+      ownerUserId === undefined || header.ownerUserId === ownerUserId
     const items: SessionSummary[] = []
     const cold: SessionHeader[] = []
     for (const record of records) {
+      if (!ownedByCaller(record.header)) continue
       const live = this.ctx.sessions.get(record.header.id)
       if (live !== undefined) {
         items.push(this.summaryFor(live))
@@ -146,6 +153,7 @@ export class ApiSessionList {
   private summarizeCold(header: SessionHeader): SessionSummary {
     const projections = this.projectionsFor(header, undefined)
     const metadata = projections?.values.sessionListMetadata
+    const { ownerUserId } = header
     return {
       sessionId: header.id,
       updatedAt: updatedAt(header, metadata),
@@ -155,6 +163,7 @@ export class ApiSessionList {
       blank: metadata?.blank ?? false,
       ...listFields(header),
       ...(projections === undefined ? {} : { projections }),
+      ...(ownerUserId !== undefined ? { ownerUserId } : {}),
     }
   }
 
@@ -178,8 +187,10 @@ export class ApiSessionList {
     try {
       const visible = await provider.listSessions(signal)
       signal.throwIfAborted()
+      const callerUserId = getPrincipal(this.ctx)?.userId
       const visibleIds = new Set(visible
-        .filter(record => record.header.cwd !== undefined)
+        .filter(record => record.header.cwd !== undefined
+          && (callerUserId === undefined || record.header.ownerUserId === callerUserId))
         .map(record => record.header.id))
       if (visibleIds.size === 0) return { items: [], hasMore: false }
       const authorized: SessionSearchItem[] = []

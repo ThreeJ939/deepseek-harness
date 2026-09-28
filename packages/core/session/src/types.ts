@@ -86,7 +86,7 @@ export type OptionalSessionSeq = SessionSeq | null
  * immutable prior-generation, and current fast-path rules are recorded in
  * `.agents/notes/implemented/architecture/2026-08-31-released-session-format-migrations.md`.
  */
-export const SESSION_FORMAT_VERSION = 4
+export const SESSION_FORMAT_VERSION = 5
 
 /**
  * Immutable validated storage metadata, kept outside the conversation event log.
@@ -128,6 +128,12 @@ export interface SessionHeader {
    * would replay history the model can no longer act on.
    */
   readonly agentPreset?: string
+  /**
+   * The user identity that owns this session. Absent in single-user deployments;
+   * stamped and enforced when `dsh-host-auth-middleware` is composed. Legacy
+   * sessions without this field stay visible only when no principal is present.
+   */
+  readonly ownerUserId?: string
 }
 
 /**
@@ -156,6 +162,8 @@ export interface CreateSessionOptions {
     readonly origin?: 'subagent'
     readonly delegationDepth?: number
     readonly agentPreset?: string
+    /** Multi-tenant owner; see {@link SessionHeader.ownerUserId}. */
+    readonly ownerUserId?: string
   }
 }
 

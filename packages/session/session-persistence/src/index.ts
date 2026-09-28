@@ -102,6 +102,8 @@ export interface SessionPersistenceStatOptions {
 
 /** Options for {@link SessionPersistence.list}. */
 export interface SessionPersistenceListOptions {
+  /** Restrict results to sessions owned by this user id. */
+  readonly ownerUserId?: string
   /** Optional cancellation for backend listing work. */
   readonly signal?: AbortSignal
 }

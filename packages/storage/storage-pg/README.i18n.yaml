@@ -1,0 +1,28 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/storage/storage-pg/README.md
+/deepseek-ai-dsh-storage-pg:
+  en: a1bbfca018de46ec
+  zh: ff2c3e8d0558fdd5
+/deepseek-ai-dsh-storage-pg/configuration-schemastery:
+  en: 2a599b6a075f730f
+  zh: 6d0d5ac801f4e546
+/deepseek-ai-dsh-storage-pg/model-experience:
+  en: 215e7ba838619b7b
+  zh: 215e7ba838619b7b
+/deepseek-ai-dsh-storage-pg/model-experience/stored-domain-records:
+  en: c5d5ffaf6b114f3e
+  zh: c5d5ffaf6b114f3e
+/deepseek-ai-dsh-storage-pg/model-experience/stored-domain-records/what-the-model-sees:
+  en: d0798e9e30583b55
+  zh: 3d3ea6cd09ff3e12
+/deepseek-ai-dsh-storage-pg/model-experience/stored-domain-records/token-effect:
+  en: 592ed887c69e5c46
+  zh: e5c061f75db11a67
+/deepseek-ai-dsh-storage-pg/model-experience/stored-domain-records/kv-cache-effect:
+  en: 0403516de6a1c542
+  zh: bff8a5b2de48531b
+/deepseek-ai-dsh-storage-pg/known-limitations-and-deferred-work:
+  en: 44b3e753973bc722
+  zh: 70eb8908682d007a

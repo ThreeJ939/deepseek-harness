@@ -1,0 +1,16 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types"
+  },
+  "include": ["src"],
+  "references": [
+    { "path": "../../../vendor/cordis" },
+    { "path": "../../../vendor/schemastery" },
+    { "path": "../../api/workspace-controller/tsconfig.host.json" },
+    { "path": "../../host/auth-middleware" },
+    { "path": "../../util/home-paths" },
+    { "path": "../../workspace/workspace" }
+  ]
+}

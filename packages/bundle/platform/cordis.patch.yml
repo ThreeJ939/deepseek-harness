@@ -1,0 +1,42 @@
+# Overlay over dsh-multi-user: replace all local-disk backends with network storage.
+# Intended composition: base + web-app + multi-user + platform (or equivalent).
+# Requires DATABASE_URL and S3_* environment variables.
+
+# Disable local backends mounted by base / multi-user
+- id: session-persistence-sqlite
+  disabled: true
+
+- id: attachment-local
+  disabled: true
+
+- id: storage-json
+  disabled: true
+
+# Point the domain form at the PostgreSQL backend name
+- id: storage-domain
+  config:
+    backend: pg
+
+# Mount network backends
+- insert:
+    - id: session-persistence-pg
+      name: '@deepseek-ai/dsh-session-persistence-pg'
+      config:
+        connectionString: !!js process.env.DATABASE_URL
+        poolSize: !!js Number(process.env.PG_POOL_SIZE || 10)
+
+    - id: attachment-s3
+      name: '@deepseek-ai/dsh-attachment-s3'
+      config:
+        endpoint: !!js process.env.S3_ENDPOINT
+        bucket: !!js process.env.S3_BUCKET
+        accessKeyId: !!js process.env.S3_ACCESS_KEY
+        secretAccessKey: !!js process.env.S3_SECRET_KEY
+        region: !!js (process.env.S3_REGION || 'us-east-1')
+        forcePathStyle: !!js process.env.S3_FORCE_PATH_STYLE !== '0'
+
+    - id: storage-pg
+      name: '@deepseek-ai/dsh-storage-pg'
+      config:
+        connectionString: !!js process.env.DATABASE_URL
+        poolSize: !!js Number(process.env.PG_POOL_SIZE || 10)

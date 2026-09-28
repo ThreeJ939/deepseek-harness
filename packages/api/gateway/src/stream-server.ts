@@ -24,9 +24,10 @@ export type RemoteStreamOpener = (
   uplink: AsyncIterable<unknown>,
   peer: PeerScope,
   control: AbortController,
+  userId?: string,
 ) => Promise<AsyncIterable<unknown>>
 
-/** The opener one socket uses: its Peer is fixed at upgrade time. */
+/** The opener one socket uses: its Peer (and optional userId) is fixed at upgrade time. */
 type BoundStreamOpener = (
   endpoint: string,
   payload: unknown,
@@ -67,8 +68,15 @@ export class RemoteStreamMuxServer {
    * @param socket - carrier socket transferred to the WebSocket server.
    * @param head - bytes already read after the HTTP upgrade headers.
    * @param peer - Peer the upgrade was admitted as.
+   * @param userId - authenticated principal user id when multi-user auth is composed.
    */
-  handleUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer, peer: PeerScope): void {
+  handleUpgrade(
+    req: IncomingMessage,
+    socket: Duplex,
+    head: Buffer,
+    peer: PeerScope,
+    userId?: string,
+  ): void {
     this.server.handleUpgrade(req, socket, head, (websocket) => {
       const release = bindPeer(websocket, peer)
       if (release === undefined) return
@@ -76,7 +84,7 @@ export class RemoteStreamMuxServer {
       websocket.on('pong', () => { this.missedHeartbeats.set(websocket, 0) })
       this.startHeartbeat()
       const bound: BoundStreamOpener = (endpoint, payload, uplink, control) =>
-        this.open(endpoint, payload, uplink, peer, control)
+        this.open(endpoint, payload, uplink, peer, control, userId)
       const connection = new RemoteStreamMuxConnection(websocket, bound, this.failure, this.streamInboxBytes)
       const done = connection.run()
       this.connections.add(done)

@@ -50,6 +50,14 @@ export type {
   ClientConnectionRpc, ConnectionRpcFailure, ConnectionRpcResult,
 } from '../rpc.ts'
 export type { RpcFetch } from './rpc.ts'
+export {
+  DSH_AUTH_EXPIRED_EVENT,
+  DSH_AUTH_JWT_KEY,
+  clearStoredAuthJwt,
+  isAuthJwtExpired,
+  notifyAuthExpired,
+  readStoredAuthJwt,
+} from '../auth-storage-key.ts'
 
 /** Observable identity and Host facts for the active connection generation. */
 export interface ConnectionGenerationState {

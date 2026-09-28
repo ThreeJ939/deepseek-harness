@@ -384,6 +384,6 @@ export function createSessionTestRemote(
       signal,
     ),
     follow: (request, signal = new AbortController().signal) => direct.follow(request, signal),
-    control: (signal = new AbortController().signal) => direct.control(signal),
+    control: (signal = new AbortController().signal) => direct.control({}, signal),
   }
 }

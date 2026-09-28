@@ -22,6 +22,7 @@ import { changesReviewAddress } from '../changes.ts'
 import { ChangesDiffStore } from './changes-diff.ts'
 import { ChangesSummaryStore } from './changes-summary.ts'
 import { PresentedOpenController } from './present-open.ts'
+import { ArchivedDownloadController } from './archive-download.ts'
 import { PresentRow } from './PresentRow.tsx'
 import { DeliverablesTail, type DeliverablesInjected } from './Deliverables.tsx'
 import { ReviewTab, type ReviewInjected } from './ReviewTab.tsx'
@@ -48,9 +49,11 @@ export const inject = ['slots', 'locale', 'uiConversation', 'remote', 'remote.se
  */
 export function apply(ctx: ClientContext): void {
   const opener = new PresentedOpenController()
+  const downloads = new ArchivedDownloadController()
   const summaries = new ChangesSummaryStore()
   const diffs = new ChangesDiffStore()
   ctx.effect(() => () => Promise.all([opener.dispose(), summaries.dispose(), diffs.dispose()]))
+  ctx.effect(() => async () => { await downloads.dispose() }, 'ui-deliverables: archive download lifecycle')
   ctx.on('connection/reset', () => {
     opener.resetHost()
     summaries.reset()
@@ -67,7 +70,7 @@ export function apply(ctx: ClientContext): void {
       children: { 'deliverables.file.actions': { kind: 'list', scope: 'session' } },
       inject: (): DeliverablesInjected => ({
         hooks: { changesDiff: diffs.state, presentedOpen: opener.state, presentedHost: opener.host, changesSummary: summaries.state,
-          showCodeDiff: ctx.configForms.developerTools.enabled },
+          showCodeDiff: ctx.configForms.developerTools.enabled, archivedDownload: downloads.state },
         loadChangesDiff: (sessionId, seq, index) => diffs.load(sessionId, seq, index),
         reloadPresentedHost: () => opener.loadHost(),
         loadChangesSummary: (sessionId, seq) => summaries.load(sessionId, seq),
@@ -76,6 +79,7 @@ export function apply(ctx: ClientContext): void {
         openChangesReview: (coordinates, index) => {
           ctx.sidebarRight.openResource(changesReviewAddress(coordinates), { params: { index } })
         },
+        downloadArchived: (sessionId, seq, index, filename) => downloads.download(sessionId, seq, index, filename),
       }),
     }, DeliverablesTail),
   )

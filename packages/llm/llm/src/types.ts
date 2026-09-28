@@ -90,8 +90,9 @@ export interface ImageBlock {
 
 /**
  * A durable verbatim file reference, valid in user content. Files never reach
- * a provider natively: request assembly projects every occurrence to
- * deterministic handle text (name, byte size, and the read-only saved path),
+ * a provider natively: request assembly expands document media types to framed
+ * extracted text when bytes are readable, otherwise projects every occurrence
+ * to deterministic handle text (name, byte size, and the read-only saved path),
  * so adapters and providers see text in its place while the durable log keeps
  * the structured reference for presentation and authorization.
  */

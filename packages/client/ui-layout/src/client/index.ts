@@ -97,6 +97,11 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      */
     'shell.overlay': { kind: 'list'; scope: 'root' }
     /**
+     * Full-screen login gate rendered above everything when multi-user auth is
+     * active and no JWT is present. A single occupant registers here.
+     */
+    'auth-gate': { kind: 'single'; scope: 'root' }
+    /**
      * Window-chrome seat at the frame's top-left, over every main panel.
      * Mounted only while the sidebar column is fully hidden (macOS desktop
      * collapse; other platforms keep the rail), so the occupant can assume the
@@ -177,6 +182,7 @@ export function apply(ctx: ClientContext): void {
         'rightbar': { kind: 'single', scope: 'root' },
         'shell.overlay': { kind: 'list', scope: 'root' },
         'shell.leading': { kind: 'single', scope: 'root' },
+        'auth-gate': { kind: 'single', scope: 'root' },
       },
       store,
     }, AppFrame)

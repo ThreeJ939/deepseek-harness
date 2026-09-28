@@ -26,7 +26,7 @@ import { mathCompatibility } from './mathCompatibility.ts'
  */
 export function parseGfm(text: string): Root {
   return recoverLocalImages(fromMarkdown(text, {
-    extensions: [gfm(), cjkFriendlyStrong()],
+    extensions: [gfm(), cjkFriendlyStrong()] as never,
     mdastExtensions: [gfmFromMarkdown()],
   }), text)
 }
@@ -39,7 +39,7 @@ export function parseGfm(text: string): Root {
  */
 export function parseGfmWithMath(text: string): Root {
   return recoverLocalImages(fromMarkdown(text, {
-    extensions: [gfm(), cjkFriendlyStrong(), mathCompatibility(), math()],
+    extensions: [gfm(), cjkFriendlyStrong(), mathCompatibility(), math()] as never,
     mdastExtensions: [gfmFromMarkdown(), mathFromMarkdown()],
   }), text)
 }

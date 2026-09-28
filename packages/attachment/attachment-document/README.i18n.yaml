@@ -1,0 +1,40 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/attachment/attachment-document/README.md
+/:
+  en: f0f039e4dce4141e
+  zh: a7190399c6b4e26d
+/deepseek-ai-dsh-attachment-document:
+  en: c88e658954ac0d94
+  zh: 23c59fca6e18b62e
+/deepseek-ai-dsh-attachment-document/summary:
+  en: 4ff76d00de91ac72
+  zh: 7d1bef6ce3319c38
+/deepseek-ai-dsh-attachment-document/table-of-contents:
+  en: 3460b3e585e0c020
+  zh: bb83d3d282b286d8
+/deepseek-ai-dsh-attachment-document/use-this-package:
+  en: 64512ec6ead4b11e
+  zh: 56fc6f43eccb2874
+/deepseek-ai-dsh-attachment-document/understand-the-implementation:
+  en: 7f77fd31684670d0
+  zh: 4c5bfa9a88c40f14
+/deepseek-ai-dsh-attachment-document/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-attachment-document/model-experience/document-text-injection:
+  en: 26356d8ec37b7035
+  zh: 26356d8ec37b7035
+/deepseek-ai-dsh-attachment-document/model-experience/document-text-injection/what-the-model-sees:
+  en: 7a81e3142ae54b3e
+  zh: 91f4aa2c3f59fd7d
+/deepseek-ai-dsh-attachment-document/model-experience/document-text-injection/token-effect:
+  en: e283e4c561797895
+  zh: 07e5f5187275dc68
+/deepseek-ai-dsh-attachment-document/model-experience/document-text-injection/kv-cache-effect:
+  en: 5e9328240e5aa897
+  zh: 3e9e139b59ab43d2
+/deepseek-ai-dsh-attachment-document/known-limitations-and-deferred-work:
+  en: 5eb58dea34bad252
+  zh: de7f8ac4f9e80523

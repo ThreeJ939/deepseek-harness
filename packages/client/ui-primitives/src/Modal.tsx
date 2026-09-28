@@ -13,11 +13,11 @@ interface ModalBaseProps {
   description?: string
   children?: ReactNode
   footer?: ReactNode
-  className?: string
-  contentClassName?: string
-  shortcutModal?: string
+  className?: string | undefined
+  contentClassName?: string | undefined
+  shortcutModal?: string | undefined
   onKeyDownCapture?: KeyboardEventHandler<HTMLDivElement>
-  backdropBlur?: boolean
+  backdropBlur?: boolean | undefined
 }
 
 type ModalProps = ModalBaseProps & (

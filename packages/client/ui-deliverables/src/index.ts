@@ -6,8 +6,10 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
+import type {} from '@deepseek-ai/dsh-attachment'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 import type {} from '@deepseek-ai/dsh-workspace-changes/types'
+import { registerDeliverableDownload } from './download.ts'
 import { registerPresentOpen } from './present-open.ts'
 
 /** Services required for file-reference guidance, change summaries, and authenticated native opens. */
@@ -28,6 +30,10 @@ const FILE_REFERENCE_PROMPT = 'Prefer showing the primary results within your fi
  */
 export function apply(ctx: Context): void {
   registerPresentOpen(ctx)
+  // Archive downloads need the attachment store; keep present opens available without it.
+  ctx.inject(['attachments'], (scope) => {
+    registerDeliverableDownload(scope)
+  })
   ctx.systemPrompt.section({
     name: 'ui:deliverable-file-references',
     order: ctx.systemPrompt.getSectionOrder('DELIVERABLE_FILE_REFERENCES'),

@@ -9,7 +9,9 @@
     "src/index.ts",
     "src/changes.ts",
     "src/presented.ts",
-    "src/present-open.ts"
+    "src/present-open.ts",
+    "src/archived.ts",
+    "src/download.ts"
   ],
   "references": [
     {
@@ -32,6 +34,12 @@
     },
     {
       "path": "../../deliverables/tool-present"
+    },
+    {
+      "path": "../../deliverables/tool-deliverable-archive"
+    },
+    {
+      "path": "../../attachment/attachment"
     },
     {
       "path": "../../deliverables/workspace-changes"
