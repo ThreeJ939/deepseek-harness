@@ -89,7 +89,7 @@ export interface TestSessionRemote {
   page(request: SessionPageRequest, signal?: AbortSignal): Promise<RemoteResult<SessionPage>>
   projections(request: SessionProjectionsRequest, signal?: AbortSignal): Promise<RemoteResult<SessionProjectionsValue>>
   follow(request: SessionFollowRequest, signal?: AbortSignal): AsyncIterable<SessionFollowFrame>
-  control(signal?: AbortSignal): AsyncIterable<SessionControlFrame>
+  control(request: { readonly viewerUserId?: string }, signal?: AbortSignal): AsyncIterable<SessionControlFrame>
 }
 
 /** Dependencies and policy supplied by a Session Controller unit harness. */
@@ -384,6 +384,6 @@ export function createSessionTestRemote(
       signal,
     ),
     follow: (request, signal = new AbortController().signal) => direct.follow(request, signal),
-    control: (signal = new AbortController().signal) => direct.control({}, signal),
+    control: (request = {}, signal = new AbortController().signal) => direct.control(request, signal),
   }
 }
